@@ -35,6 +35,44 @@ a {
   text-decoration: none;
 }
 
+input,
+button,
+textarea,
+select {
+  width: 100%;
+  padding: 5px;
+}
+
+button {
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.flex-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.flex-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.uppercase {
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
 @media (prefers-color-scheme: dark) {
   html {
     color-scheme: dark;
