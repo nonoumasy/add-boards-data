@@ -1001,7 +1001,7 @@ const BoardItem = ({
                 position: "fixed",
                 right: 20,
                 bottom: 20,
-                width: 430,
+                width: 360,
                 border: "1px solid #ddd",
                 background: "#fff",
                 padding: 10,
@@ -1036,10 +1036,6 @@ const BoardItem = ({
                 >
                   Select All
                 </button>
-
-                <div style={{ fontSize: 12, opacity: 0.7 }}>
-                  Esc = deselect all
-                </div>
               </div>
 
               <form
@@ -1075,7 +1071,7 @@ const BoardItem = ({
                   onChange={(e) => setBulkTitle(e.target.value)}
                 />
                 <button type="button" onClick={handleBulkApplyTitle}>
-                  Apply Title To Selected
+                  Apply Title
                 </button>
               </div>
 
@@ -1093,7 +1089,7 @@ const BoardItem = ({
                   onChange={(e) => setBulkAuthor(e.target.value)}
                 />
                 <button type="button" onClick={handleBulkApplyAuthor}>
-                  Apply Author To Selected
+                  Apply Author
                 </button>
               </div>
 
@@ -1122,7 +1118,7 @@ const BoardItem = ({
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(150px,1fr))",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(200px,1fr))",
                   gap: 10,
                 }}
               >
