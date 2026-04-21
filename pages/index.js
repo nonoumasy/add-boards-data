@@ -2066,8 +2066,8 @@ const SortableImage = ({
       }
     : {
         width: "100%",
-        height: 200,
         border: "none",
+        display: "block",
       }
 
   return (
@@ -2133,10 +2133,11 @@ const SortableImage = ({
                     maxHeight: "100vh",
                     width: "auto",
                     height: "auto",
-                    objectFit: "contain",
+                    objectFit: "cover",
                   }
                 : {
                     width: "100%",
+                    height: "100%",
                     objectFit: "cover",
                   }
             }
