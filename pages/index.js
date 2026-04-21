@@ -18,6 +18,7 @@ import {
   MdCheck,
 } from "react-icons/md"
 import {
+  IoLogoGoogle,
   IoMdAdd,
   IoMdArrowRoundDown,
   IoMdArrowRoundUp,
@@ -2028,6 +2029,7 @@ const SortableImage = ({
     width: "100%",
     cursor: "pointer",
     background: "#000",
+    border: "1px solid",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -2094,24 +2096,27 @@ const SortableImage = ({
         </div>
       ) : img.image ? (
         <div id={mediaId} onClick={toggleFullscreen} style={mediaWrapperStyle}>
-          <button
-            type="button"
-            onClick={handleGoogleImageSearch}
-            style={{
-              position: "absolute",
-              top: 10,
-              left: 10,
-              zIndex: 2,
-              width: "fit-content",
-              backgroundColor: "#222",
-              color: "white",
-              textDecoration: "none",
-              border: "none",
-              borderRadius: 5,
-            }}
+          <div
+            className="flex-row"
+            style={{ position: "absolute", top: 10, right: 10, zIndex: 2 }}
           >
-            Google
-          </button>
+            <IoLogoGoogle
+              className="icon-button"
+              size={ICON_SIZE}
+              onClick={handleGoogleImageSearch}
+              title="Google"
+              style={{
+                cursor: "pointer",
+              }}
+            />
+            <RiImageAiFill
+              className="icon-button"
+              size={ICON_SIZE}
+              onClick={handleAnalyze}
+              title={isAnalyzing ? "Analyzing..." : "Analyze"}
+              style={{ cursor: "pointer" }}
+            />
+          </div>
 
           <img loading="lazy" src={img.image} style={mediaStyle} />
         </div>
@@ -2177,13 +2182,6 @@ const SortableImage = ({
           style={{
             border: !img.imageAuthor?.trim() ? "2px solid green" : undefined,
           }}
-        />
-        <RiImageAiFill
-          className="icon-button"
-          size={ICON_SIZE}
-          onClick={handleAnalyze}
-          title={isAnalyzing ? "Analyzing..." : "Analyze"}
-          style={{ cursor: "pointer" }}
         />
         <IoMdArrowRoundUp
           className="icon-button"
