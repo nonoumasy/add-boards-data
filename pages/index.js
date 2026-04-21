@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { DndContext, closestCenter } from "@dnd-kit/core"
 import {
   SortableContext,
@@ -7,11 +7,37 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
+import {
+  MdClear,
+  MdOutlineFolder,
+  MdSaveAlt,
+  MdChevronLeft,
+  MdChevronRight,
+  MdMenu,
+  MdDragIndicator,
+  MdCheck,
+} from "react-icons/md"
+import {
+  IoMdAdd,
+  IoMdArrowRoundDown,
+  IoMdArrowRoundUp,
+  IoMdArrowUp,
+  IoMdClose,
+} from "react-icons/io"
+import { AiOutlineDelete } from "react-icons/ai"
+import { FiMinus } from "react-icons/fi"
+import { RiImageAiFill } from "react-icons/ri"
+import { BsCaretUpSquareFill } from "react-icons/bs"
+import { TbLayoutBottombarCollapse } from "react-icons/tb"
+
+const ICON_SIZE = 24
 
 const STORAGE_KEY = "json-editor-data"
 const FILE_HANDLE_DB = "json-editor-file-db"
 const FILE_HANDLE_STORE = "handles"
 const FILE_HANDLE_KEY = "active-json-file"
+const FLOATING_MENU_POSITION_KEY = "json-editor-floating-menu-position-v1"
+const FLOATING_MENU_MINIMIZED_KEY = "json-editor-floating-menu-minimized-v1"
 
 // ---------- INDEXEDDB ----------
 const openFileHandleDb = () =>
@@ -203,6 +229,41 @@ const moveSelectedImagesToIndex = (images, selectedIndexes, targetIndex) => {
   return next
 }
 
+const sleep = (ms) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+
+const getInitialFloatingMenuPosition = () => {
+  if (typeof window === "undefined") {
+    return { x: 20, y: 20 }
+  }
+
+  try {
+    const saved = localStorage.getItem(FLOATING_MENU_POSITION_KEY)
+    if (!saved) {
+      return {
+        x: Math.max(window.innerWidth - 440, 20),
+        y: Math.max(window.innerHeight - 700, 20),
+      }
+    }
+
+    const parsed = JSON.parse(saved)
+    const x = Number(parsed?.x)
+    const y = Number(parsed?.y)
+
+    return {
+      x: Number.isFinite(x) ? x : Math.max(window.innerWidth - 440, 20),
+      y: Number.isFinite(y) ? y : Math.max(window.innerHeight - 700, 20),
+    }
+  } catch {
+    return {
+      x: Math.max(window.innerWidth - 440, 20),
+      y: Math.max(window.innerHeight - 700, 20),
+    }
+  }
+}
+
 const Home = () => {
   const [data, setData] = useState([])
   const [fileName, setFileName] = useState("boardsData")
@@ -210,8 +271,370 @@ const Home = () => {
   const [fileHandle, setFileHandle] = useState(null)
   const [supportsFsAccess, setSupportsFsAccess] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
+  const [analyzingMap, setAnalyzingMap] = useState({})
+  const [globalMessage, setGlobalMessage] = useState("")
+
+  const [selectionByBoard, setSelectionByBoard] = useState({})
+  const [lastSelectedByBoard, setLastSelectedByBoard] = useState({})
+  const [activeBoardId, setActiveBoardId] = useState(null)
+
+  const [bulkMoveIndex, setBulkMoveIndex] = useState("")
+  const [bulkTitle, setBulkTitle] = useState("")
+  const [bulkAuthor, setBulkAuthor] = useState("")
+  const [isBatchAnalyzing, setIsBatchAnalyzing] = useState(false)
+
+  const [floatingMenuPosition, setFloatingMenuPosition] = useState({
+    x: 20,
+    y: 20,
+  })
+  const [isMenuMinimized, setIsMenuMinimized] = useState(false)
+  const dragStateRef = useRef(null)
 
   const markDirty = () => setDirty(true)
+
+  const setAnalyzing = (key, value) => {
+    setAnalyzingMap((prev) => ({
+      ...prev,
+      [key]: value,
+    }))
+  }
+
+  const selectionBoardIds = useMemo(
+    () =>
+      Object.entries(selectionByBoard)
+        .filter(([, indexes]) => Array.isArray(indexes) && indexes.length > 0)
+        .map(([boardId]) => boardId),
+    [selectionByBoard],
+  )
+
+  const activeBoard =
+    data.find((item) => item.id === activeBoardId) ||
+    data.find((item) => selectionBoardIds.includes(item.id)) ||
+    null
+
+  const activeSelectedIndexes = activeBoard
+    ? (selectionByBoard[activeBoard.id] || []).filter(
+        (idx) => idx < activeBoard.images.length,
+      )
+    : []
+
+  const activeAuthorListId = activeBoard
+    ? `image-author-options-${activeBoard.id}`
+    : "image-author-options-global"
+
+  const activeFrequentAuthors = activeBoard
+    ? Object.entries(
+        (activeBoard.images || [])
+          .map((img) => img.imageAuthor?.trim())
+          .filter(Boolean)
+          .reduce((acc, value) => {
+            acc[value] = (acc[value] || 0) + 1
+            return acc
+          }, {}),
+      )
+        .sort((a, b) => b[1] - a[1])
+        .map(([value]) => value)
+    : []
+
+  const activeSelectionCount = activeSelectedIndexes.length
+
+  const cycleBoard = (direction) => {
+    if (!selectionBoardIds.length) return
+
+    if (!activeBoardId || !selectionBoardIds.includes(activeBoardId)) {
+      setActiveBoardId(selectionBoardIds[0])
+      return
+    }
+
+    const currentIndex = selectionBoardIds.indexOf(activeBoardId)
+    const nextIndex =
+      direction === "prev"
+        ? (currentIndex - 1 + selectionBoardIds.length) %
+          selectionBoardIds.length
+        : (currentIndex + 1) % selectionBoardIds.length
+
+    setActiveBoardId(selectionBoardIds[nextIndex])
+  }
+
+  const clearBoardSelection = (boardId) => {
+    setSelectionByBoard((prev) => ({
+      ...prev,
+      [boardId]: [],
+    }))
+    setLastSelectedByBoard((prev) => ({
+      ...prev,
+      [boardId]: null,
+    }))
+
+    if (activeBoardId === boardId) {
+      const remainingBoardIds = selectionBoardIds.filter((id) => id !== boardId)
+      setActiveBoardId(remainingBoardIds[0] || null)
+    }
+  }
+
+  const selectAllImagesForActiveBoard = () => {
+    if (!activeBoard) return
+
+    const indexes = activeBoard.images.map((_, idx) => idx)
+
+    setSelectionByBoard((prev) => ({
+      ...prev,
+      [activeBoard.id]: indexes,
+    }))
+
+    setLastSelectedByBoard((prev) => ({
+      ...prev,
+      [activeBoard.id]: activeBoard.images.length
+        ? activeBoard.images.length - 1
+        : null,
+    }))
+  }
+
+  const handleSelectImage = (boardId, idx, isShiftKey, imageCount) => {
+    const lastSelectedIndex = lastSelectedByBoard[boardId]
+
+    setActiveBoardId(boardId)
+
+    setSelectionByBoard((prev) => {
+      const current = (prev[boardId] || []).filter(
+        (selectedIndex) => selectedIndex < imageCount,
+      )
+
+      if (
+        isShiftKey &&
+        lastSelectedIndex != null &&
+        lastSelectedIndex < imageCount
+      ) {
+        const start = Math.min(lastSelectedIndex, idx)
+        const end = Math.max(lastSelectedIndex, idx)
+        const range = Array.from(
+          { length: end - start + 1 },
+          (_, i) => start + i,
+        )
+        const nextSet = new Set(current)
+
+        range.forEach((value) => {
+          nextSet.add(value)
+        })
+
+        return {
+          ...prev,
+          [boardId]: [...nextSet].sort((a, b) => a - b),
+        }
+      }
+
+      if (current.includes(idx)) {
+        return {
+          ...prev,
+          [boardId]: current.filter((value) => value !== idx),
+        }
+      }
+
+      return {
+        ...prev,
+        [boardId]: [...current, idx].sort((a, b) => a - b),
+      }
+    })
+
+    setLastSelectedByBoard((prev) => ({
+      ...prev,
+      [boardId]: idx,
+    }))
+  }
+
+  const handleMenuDragStart = (e) => {
+    if (e.button !== 0) return
+
+    dragStateRef.current = {
+      offsetX: e.clientX - floatingMenuPosition.x,
+      offsetY: e.clientY - floatingMenuPosition.y,
+    }
+
+    window.addEventListener("mousemove", handleMenuDragMove)
+    window.addEventListener("mouseup", handleMenuDragEnd)
+  }
+
+  const handleMenuDragMove = (e) => {
+    if (!dragStateRef.current) return
+
+    const menuWidth = isMenuMinimized ? 52 : 300
+    const menuHeight = isMenuMinimized ? 52 : 400
+    const nextX = e.clientX - dragStateRef.current.offsetX
+    const nextY = e.clientY - dragStateRef.current.offsetY
+
+    const maxX = Math.max(window.innerWidth - menuWidth - 8, 0)
+    const maxY = Math.max(window.innerHeight - menuHeight - 8, 0)
+
+    setFloatingMenuPosition({
+      x: clampIndex(nextX, maxX),
+      y: clampIndex(nextY, maxY),
+    })
+  }
+
+  const handleMenuDragEnd = () => {
+    dragStateRef.current = null
+    window.removeEventListener("mousemove", handleMenuDragMove)
+    window.removeEventListener("mouseup", handleMenuDragEnd)
+  }
+
+  const analyzeSingleImage = async (
+    itemId,
+    index,
+    imageUrl,
+    currentTitle,
+    currentAuthor,
+  ) => {
+    if (!imageUrl?.trim()) {
+      alert("Missing image URL.")
+      return
+    }
+
+    const imageKey = `${itemId}:${index}`
+
+    try {
+      setAnalyzing(imageKey, true)
+      setGlobalMessage("")
+
+      const response = await fetch("/api/gemini-analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          imageUrl,
+        }),
+      })
+
+      const payload = await response.json()
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Analyze failed.")
+      }
+
+      markDirty()
+      setData((prev) =>
+        prev.map((item) =>
+          item.id !== itemId
+            ? item
+            : {
+                ...item,
+                images: item.images.map((img, i) =>
+                  i !== index
+                    ? img
+                    : {
+                        ...img,
+                        title: payload?.title || currentTitle || "",
+                        imageAuthor:
+                          payload?.imageAuthor || currentAuthor || "",
+                      },
+                ),
+              },
+        ),
+      )
+
+      setGlobalMessage("Analyze complete.")
+    } catch (err) {
+      console.error(err)
+      alert(err.message || "Analyze failed.")
+    } finally {
+      setAnalyzing(imageKey, false)
+    }
+  }
+
+  const analyzeSelectedImages = async (
+    itemId,
+    selectedIndexes,
+    images,
+    options = {},
+  ) => {
+    const { overwriteTitle = false, overwriteAuthor = false } = options
+
+    const targets = selectedIndexes
+      .map((index) => ({
+        index,
+        image: images[index],
+      }))
+      .filter((entry) => entry?.image?.image?.trim())
+
+    if (!targets.length) {
+      alert("No valid image URLs in selected items.")
+      return
+    }
+
+    try {
+      setGlobalMessage(`Analyzing ${targets.length} image(s)...`)
+
+      for (let i = 0; i < targets.length; i += 1) {
+        const entry = targets[i]
+        const imageKey = `${itemId}:${entry.index}`
+
+        try {
+          setAnalyzing(imageKey, true)
+
+          const response = await fetch("/api/gemini-analyze", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              imageUrl: entry.image.image,
+            }),
+          })
+
+          const payload = await response.json()
+
+          if (!response.ok) {
+            throw new Error(payload?.error || "Analyze failed.")
+          }
+
+          markDirty()
+          setData((prev) =>
+            prev.map((item) =>
+              item.id !== itemId
+                ? item
+                : {
+                    ...item,
+                    images: item.images.map((img, idx) => {
+                      if (idx !== entry.index) return img
+
+                      const nextTitle =
+                        overwriteTitle || !img.title?.trim()
+                          ? payload?.title || img.title || ""
+                          : img.title
+
+                      const nextAuthor =
+                        overwriteAuthor || !img.imageAuthor?.trim()
+                          ? payload?.imageAuthor || img.imageAuthor || ""
+                          : img.imageAuthor
+
+                      return {
+                        ...img,
+                        title: nextTitle,
+                        imageAuthor: nextAuthor,
+                      }
+                    }),
+                  },
+            ),
+          )
+        } catch (err) {
+          console.error(err)
+        } finally {
+          setAnalyzing(imageKey, false)
+        }
+
+        setGlobalMessage(`Analyzed ${i + 1} of ${targets.length} image(s)...`)
+
+        if (i < targets.length - 1) {
+          await sleep(250)
+        }
+      }
+
+      setGlobalMessage(`Finished analyzing ${targets.length} image(s).`)
+    } catch (err) {
+      console.error(err)
+      alert(err.message || "Batch analyze failed.")
+    }
+  }
 
   useEffect(() => {
     setIsMounted(true)
@@ -226,10 +649,15 @@ const Home = () => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
 
-      if (!saved) return
+      if (saved) {
+        setData(JSON.parse(saved))
+        setDirty(true)
+      }
 
-      setData(JSON.parse(saved))
-      setDirty(true)
+      setFloatingMenuPosition(getInitialFloatingMenuPosition())
+
+      const savedMinimized = localStorage.getItem(FLOATING_MENU_MINIMIZED_KEY)
+      setIsMenuMinimized(savedMinimized === "true")
     } catch (err) {
       console.error(err)
     }
@@ -285,6 +713,29 @@ const Home = () => {
   useEffect(() => {
     if (!isMounted) return
 
+    try {
+      localStorage.setItem(
+        FLOATING_MENU_POSITION_KEY,
+        JSON.stringify(floatingMenuPosition),
+      )
+    } catch (err) {
+      console.error(err)
+    }
+  }, [floatingMenuPosition, isMounted])
+
+  useEffect(() => {
+    if (!isMounted) return
+
+    try {
+      localStorage.setItem(FLOATING_MENU_MINIMIZED_KEY, String(isMenuMinimized))
+    } catch (err) {
+      console.error(err)
+    }
+  }, [isMenuMinimized, isMounted])
+
+  useEffect(() => {
+    if (!isMounted) return
+
     const handleBeforeUnload = (e) => {
       if (!dirty) return
       e.preventDefault()
@@ -294,6 +745,23 @@ const Home = () => {
     window.addEventListener("beforeunload", handleBeforeUnload)
     return () => window.removeEventListener("beforeunload", handleBeforeUnload)
   }, [dirty, isMounted])
+
+  useEffect(() => {
+    if (!activeBoard && selectionBoardIds.length) {
+      setActiveBoardId(selectionBoardIds[0])
+    }
+
+    if (!selectionBoardIds.length && activeBoardId) {
+      setActiveBoardId(null)
+    }
+  }, [activeBoard, selectionBoardIds, activeBoardId])
+
+  useEffect(() => {
+    return () => {
+      window.removeEventListener("mousemove", handleMenuDragMove)
+      window.removeEventListener("mouseup", handleMenuDragEnd)
+    }
+  }, [])
 
   const handleUpload = async () => {
     if (!supportsFsAccess) {
@@ -325,6 +793,10 @@ const Home = () => {
       setData(normalizeLoadedData(parsed))
       localStorage.removeItem(STORAGE_KEY)
       setDirty(false)
+
+      setSelectionByBoard({})
+      setLastSelectedByBoard({})
+      setActiveBoardId(null)
     } catch (err) {
       console.error(err)
     }
@@ -419,10 +891,35 @@ const Home = () => {
     )
   }
 
+  const collapseAllBoards = () => {
+    setData((prev) =>
+      prev.map((item) => ({
+        ...item,
+        open: false,
+      })),
+    )
+  }
+
   const deleteItem = (id) => {
     if (!confirm("Delete this item?")) return
     markDirty()
     setData((prev) => prev.filter((item) => item.id !== id))
+
+    setSelectionByBoard((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+
+    setLastSelectedByBoard((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+
+    if (activeBoardId === id) {
+      setActiveBoardId(null)
+    }
   }
 
   const createItem = () => {
@@ -468,6 +965,197 @@ const Home = () => {
             },
       ),
     )
+
+    setSelectionByBoard((prev) => {
+      const current = prev[itemId] || []
+      const nextIndexes = current
+        .filter((selectedIndex) => selectedIndex !== index)
+        .map((selectedIndex) =>
+          selectedIndex > index ? selectedIndex - 1 : selectedIndex,
+        )
+
+      return {
+        ...prev,
+        [itemId]: nextIndexes,
+      }
+    })
+
+    setLastSelectedByBoard((prev) => {
+      const current = prev[itemId]
+      if (current == null) return prev
+
+      return {
+        ...prev,
+        [itemId]:
+          current === index ? null : current > index ? current - 1 : current,
+      }
+    })
+  }
+
+  const handleAnalyzeSelected = async () => {
+    if (!activeBoard || activeSelectedIndexes.length === 0) {
+      alert("Select image(s) first.")
+      return
+    }
+
+    setIsBatchAnalyzing(true)
+
+    try {
+      await analyzeSelectedImages(
+        activeBoard.id,
+        activeSelectedIndexes,
+        activeBoard.images,
+        {
+          overwriteTitle: false,
+          overwriteAuthor: false,
+        },
+      )
+    } finally {
+      setIsBatchAnalyzing(false)
+    }
+  }
+
+  const handleBulkMoveSubmit = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (!activeBoard || activeSelectedIndexes.length <= 1) return
+
+    const targetIndex = clampIndex(bulkMoveIndex, activeBoard.images.length)
+
+    markDirty()
+    setData((prev) =>
+      prev.map((it) => {
+        if (it.id !== activeBoard.id) return it
+
+        return {
+          ...it,
+          images: moveSelectedImagesToIndex(
+            it.images,
+            activeSelectedIndexes,
+            targetIndex,
+          ),
+        }
+      }),
+    )
+
+    clearBoardSelection(activeBoard.id)
+    setBulkMoveIndex("")
+  }
+
+  const handleBulkApplyTitle = () => {
+    if (!activeBoard || activeSelectedIndexes.length <= 1) return
+
+    const selectedSet = new Set(activeSelectedIndexes)
+
+    markDirty()
+    setData((prev) =>
+      prev.map((it) =>
+        it.id !== activeBoard.id
+          ? it
+          : {
+              ...it,
+              images: it.images.map((img, idx) =>
+                selectedSet.has(idx) ? { ...img, title: bulkTitle } : img,
+              ),
+            },
+      ),
+    )
+
+    clearBoardSelection(activeBoard.id)
+    setBulkTitle("")
+  }
+
+  const handleBulkApplyAuthor = () => {
+    if (!activeBoard || activeSelectedIndexes.length <= 1) return
+
+    const selectedSet = new Set(activeSelectedIndexes)
+
+    markDirty()
+    setData((prev) =>
+      prev.map((it) =>
+        it.id !== activeBoard.id
+          ? it
+          : {
+              ...it,
+              images: it.images.map((img, idx) =>
+                selectedSet.has(idx)
+                  ? { ...img, imageAuthor: bulkAuthor }
+                  : img,
+              ),
+            },
+      ),
+    )
+
+    clearBoardSelection(activeBoard.id)
+    setBulkAuthor("")
+  }
+
+  const handleBulkMoveToTop = () => {
+    if (!activeBoard || activeSelectedIndexes.length <= 1) return
+
+    markDirty()
+    setData((prev) =>
+      prev.map((it) => {
+        if (it.id !== activeBoard.id) return it
+        return {
+          ...it,
+          images: moveSelectedImagesToIndex(
+            it.images,
+            activeSelectedIndexes,
+            0,
+          ),
+        }
+      }),
+    )
+
+    clearBoardSelection(activeBoard.id)
+  }
+
+  const handleBulkMoveToBottom = () => {
+    if (!activeBoard || activeSelectedIndexes.length <= 1) return
+
+    markDirty()
+    setData((prev) =>
+      prev.map((it) => {
+        if (it.id !== activeBoard.id) return it
+        return {
+          ...it,
+          images: moveSelectedImagesToIndex(
+            it.images,
+            activeSelectedIndexes,
+            it.images.length,
+          ),
+        }
+      }),
+    )
+
+    clearBoardSelection(activeBoard.id)
+  }
+
+  const handleBulkDelete = () => {
+    if (!activeBoard || activeSelectedIndexes.length <= 1) return
+
+    if (!confirm(`Delete ${activeSelectedIndexes.length} selected image(s)?`)) {
+      return
+    }
+
+    const selectedSet = new Set(activeSelectedIndexes)
+
+    markDirty()
+    setData((prev) =>
+      prev.map((it) =>
+        it.id !== activeBoard.id
+          ? it
+          : {
+              ...it,
+              images: it.images.filter((_, idx) => !selectedSet.has(idx)),
+            },
+      ),
+    )
+
+    clearBoardSelection(activeBoard.id)
+    setBulkMoveIndex("")
   }
 
   useEffect(() => {
@@ -478,18 +1166,80 @@ const Home = () => {
         e.preventDefault()
         handleSave()
       }
+
+      if (e.key === "Escape") {
+        const tagName = e.target?.tagName?.toLowerCase()
+        const isTypingTarget =
+          tagName === "input" ||
+          tagName === "textarea" ||
+          tagName === "select" ||
+          e.target?.isContentEditable
+
+        if (!isTypingTarget && activeBoardId) {
+          clearBoardSelection(activeBoardId)
+        }
+      }
     }
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [data, fileName, fileHandle, supportsFsAccess, isMounted])
+  }, [data, fileName, fileHandle, supportsFsAccess, isMounted, activeBoardId])
+
+  const showGlobalBulkActions = activeSelectionCount > 1 && !!activeBoard
 
   return (
     <main className="flex-column" style={{ padding: 20 }}>
-      <button onClick={handleUpload}>Load JSON</button>
-      <button onClick={createItem}>Create Item</button>
-      <button onClick={handleSave}>Save</button>
-      <button onClick={forgetSavedFile}>Forget Saved File</button>
+      {globalMessage ? (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: 10,
+            border: "1px solid #ccc",
+            fontSize: 12,
+            fontWeight: "bold",
+          }}
+        >
+          {globalMessage}
+        </div>
+      ) : null}
+
+      <div className="flex-row">
+        <MdOutlineFolder
+          className="icon-button"
+          size={ICON_SIZE}
+          onClick={handleUpload}
+          title="Load json"
+          style={{ cursor: "pointer" }}
+        />
+        <IoMdAdd
+          className="icon-button"
+          size={ICON_SIZE}
+          onClick={createItem}
+          title="Create Board"
+          style={{ cursor: "pointer" }}
+        />
+        <MdSaveAlt
+          className="icon-button"
+          size={ICON_SIZE}
+          onClick={handleSave}
+          title="Save Board"
+          style={{ cursor: "pointer" }}
+        />
+        <MdClear
+          className="icon-button"
+          size={ICON_SIZE}
+          onClick={forgetSavedFile}
+          title="Clear Board json"
+          style={{ cursor: "pointer" }}
+        />
+        <TbLayoutBottombarCollapse
+          className="icon-button"
+          size={ICON_SIZE}
+          onClick={collapseAllBoards}
+          title="Collapse All Boards"
+          style={{ cursor: "pointer" }}
+        />
+      </div>
 
       <div style={{ fontSize: 12, opacity: 0.75 }}>
         file: {fileName}
@@ -519,9 +1269,320 @@ const Home = () => {
               deleteImage={deleteImage}
               setData={setData}
               markDirty={markDirty}
+              analyzeSingleImage={analyzeSingleImage}
+              analyzingMap={analyzingMap}
+              selectedIndexes={(selectionByBoard[item.id] || []).filter(
+                (selectedIndex) => selectedIndex < item.images.length,
+              )}
+              onSelectImage={(idx, isShiftKey) =>
+                handleSelectImage(item.id, idx, isShiftKey, item.images.length)
+              }
+              setActiveBoardId={setActiveBoardId}
             />
           ))}
       </div>
+
+      {showGlobalBulkActions && !isMenuMinimized && (
+        <div
+          className="flex-column"
+          style={{
+            position: "fixed",
+            left: floatingMenuPosition.x,
+            top: floatingMenuPosition.y,
+            width: 300,
+            borderRadius: 20,
+            background: "#fff",
+            padding: 20,
+            zIndex: 9999,
+            boxShadow: "0 5px 10px rgba(0,0,0,0.5)",
+            gap: 10,
+          }}
+        >
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr auto",
+              gap: 10,
+              alignItems: "center",
+              cursor: "grab",
+              userSelect: "none",
+            }}
+            onMouseDown={handleMenuDragStart}
+            title="Drag menu"
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                fontWeight: "bold",
+              }}
+            >
+              <MdDragIndicator size={20} />
+              <span>Selection Menu</span>
+            </div>
+
+            <FiMinus
+              size={20}
+              title="Minimize menu"
+              // className="icon-button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setIsMenuMinimized(true)
+              }}
+            />
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "50px 1fr",
+              gap: 10,
+              alignItems: "center",
+            }}
+          >
+            <div
+              style={{
+                width: 50,
+                height: 50,
+                borderRadius: 10,
+                background: "#f3f3f3",
+                overflow: "hidden",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {activeBoard?.images?.[0]?.image ? (
+                <img
+                  src={activeBoard.images[0].image}
+                  alt=""
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    display: "block",
+                  }}
+                />
+              ) : (
+                <span style={{ fontSize: 11, opacity: 0.6 }}>No image</span>
+              )}
+            </div>
+
+            <div className="flex-column" style={{ gap: 4 }}>
+              <div
+                className="flex-row"
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "baseline",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div style={{ fontWeight: "bold", fontSize: 18 }}>
+                  {activeBoard.title || "Untitled"}
+                </div>
+
+                <div style={{ fontSize: 12, opacity: 0.75 }}>
+                  {activeSelectionCount} selected
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-row">
+            <select
+              value={activeBoard.id}
+              onChange={(e) => setActiveBoardId(e.target.value)}
+            >
+              {selectionBoardIds.map((boardId) => {
+                const board = data.find((item) => item.id === boardId)
+                if (!board) return null
+
+                const count = (selectionByBoard[boardId] || []).length
+
+                return (
+                  <option key={boardId} value={boardId}>
+                    {(board.title || "Untitled") + ` (${count})`}
+                  </option>
+                )
+              })}
+            </select>
+
+            <MdChevronLeft
+              title="Previous board"
+              size={ICON_SIZE}
+              onClick={() => cycleBoard("prev")}
+            />
+            <MdChevronRight
+              title="Previous board"
+              size={ICON_SIZE}
+              onClick={() => cycleBoard("next")}
+            />
+          </div>
+
+          <div style={{ position: "relative" }}>
+            <input
+              type="number"
+              min="0"
+              max={activeBoard.images.length}
+              required
+              placeholder="move selected to index"
+              value={bulkMoveIndex}
+              onChange={(e) => setBulkMoveIndex(e.target.value)}
+            />
+            <IoMdArrowUp
+              className="icon-button"
+              title="Move Selected"
+              size={ICON_SIZE}
+              onSubmit={handleBulkMoveSubmit}
+              style={{
+                width: 20,
+                height: 20,
+                padding: 3,
+                position: "absolute",
+                right: 10,
+                top: "50%",
+                transform: "translateY(-50%)",
+                cursor: "pointer",
+              }}
+            />
+          </div>
+
+          <div style={{ position: "relative" }}>
+            <input
+              placeholder="apply same title to selected"
+              value={bulkTitle}
+              onChange={(e) => setBulkTitle(e.target.value)}
+            />
+            <IoMdArrowUp
+              className="icon-button"
+              title="Apply Title"
+              size={ICON_SIZE}
+              onClick={handleBulkApplyTitle}
+              style={{
+                width: 20,
+                height: 20,
+                padding: 3,
+                position: "absolute",
+                right: 10,
+                top: "50%",
+                transform: "translateY(-50%)",
+                cursor: "pointer",
+              }}
+            />
+          </div>
+
+          <div style={{ position: "relative" }}>
+            <input
+              list={activeAuthorListId}
+              placeholder="apply same author to selected"
+              value={bulkAuthor}
+              onChange={(e) => setBulkAuthor(e.target.value)}
+            />
+            <IoMdArrowUp
+              className="icon-button"
+              title="Apply Author"
+              size={ICON_SIZE}
+              onClick={handleBulkApplyAuthor}
+              style={{
+                width: 20,
+                height: 20,
+                padding: 3,
+                position: "absolute",
+                right: 10,
+                top: "50%",
+                transform: "translateY(-50%)",
+                cursor: "pointer",
+              }}
+            />
+          </div>
+          <div className="flex-between">
+            <div className="flex-row">
+              <MdCheck
+                className="icon-button"
+                size={ICON_SIZE}
+                onClick={selectAllImagesForActiveBoard}
+                title="Select All In Board"
+                style={{ cursor: "pointer" }}
+              />
+              <IoMdClose
+                className="icon-button"
+                size={ICON_SIZE}
+                onClick={() => clearBoardSelection(activeBoard.id)}
+                title="Deselect Board"
+                style={{ cursor: "pointer" }}
+              />
+              <RiImageAiFill
+                disabled={isBatchAnalyzing}
+                className="icon-button"
+                size={ICON_SIZE}
+                onClick={handleAnalyzeSelected}
+                title={
+                  isBatchAnalyzing
+                    ? "Analyzing Selected..."
+                    : "Analyze Selected"
+                }
+                style={{ cursor: "pointer" }}
+              />
+            </div>
+            <div className="flex-row">
+              <IoMdArrowRoundUp
+                className="icon-button"
+                size={ICON_SIZE}
+                onClick={handleBulkMoveToTop}
+                title="Move Selected To Top"
+                style={{ cursor: "pointer" }}
+              />
+              <IoMdArrowRoundDown
+                className="icon-button"
+                size={ICON_SIZE}
+                onClick={handleBulkMoveToBottom}
+                title="Move Selected To Bottom"
+                style={{ cursor: "pointer" }}
+              />
+              <AiOutlineDelete
+                className="icon-button"
+                size={ICON_SIZE}
+                onClick={handleBulkDelete}
+                title="Delete Selected"
+                style={{ cursor: "pointer" }}
+              />
+            </div>
+          </div>
+          <datalist id={activeAuthorListId}>
+            {activeFrequentAuthors.map((author) => (
+              <option key={author} value={author} />
+            ))}
+          </datalist>
+        </div>
+      )}
+
+      {showGlobalBulkActions && isMenuMinimized && (
+        <button
+          type="button"
+          onClick={() => setIsMenuMinimized(false)}
+          onMouseDown={handleMenuDragStart}
+          title="Show selection menu"
+          style={{
+            position: "fixed",
+            left: floatingMenuPosition.x,
+            top: floatingMenuPosition.y,
+            zIndex: 9999,
+            width: 52,
+            height: 52,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: "1px solid #ddd",
+            background: "#fff",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
+            cursor: "grab",
+          }}
+        >
+          <MdMenu size={ICON_SIZE} />
+        </button>
+      )}
     </main>
   )
 }
@@ -536,6 +1597,11 @@ const BoardItem = ({
   deleteImage,
   setData,
   markDirty,
+  analyzeSingleImage,
+  analyzingMap,
+  selectedIndexes,
+  onSelectImage,
+  setActiveBoardId,
 }) => {
   const duplicateUrls = getDuplicateImages(item.images)
   const missingTitleCount = item.images.filter(
@@ -544,21 +1610,6 @@ const BoardItem = ({
   const missingAuthorCount = item.images.filter(
     (img) => !img.imageAuthor?.trim(),
   ).length
-
-  const [selectedIndexes, setSelectedIndexes] = useState([])
-  const [lastSelectedIndex, setLastSelectedIndex] = useState(null)
-  const [bulkMoveIndex, setBulkMoveIndex] = useState("")
-  const [bulkTitle, setBulkTitle] = useState("")
-  const [bulkAuthor, setBulkAuthor] = useState("")
-
-  const safeSelectedIndexes = selectedIndexes.filter(
-    (selectedIndex) => selectedIndex < item.images.length,
-  )
-
-  const safeLastSelectedIndex =
-    lastSelectedIndex != null && lastSelectedIndex < item.images.length
-      ? lastSelectedIndex
-      : null
 
   const frequentAuthors = Object.entries(
     (item.images || [])
@@ -573,73 +1624,6 @@ const BoardItem = ({
     .map(([value]) => value)
 
   const authorListId = `image-author-options-${item.id}`
-
-  const handleSelectImage = (idx, isShiftKey) => {
-    setSelectedIndexes((prev) => {
-      const current = prev.filter(
-        (selectedIndex) => selectedIndex < item.images.length,
-      )
-
-      if (isShiftKey && safeLastSelectedIndex != null) {
-        const start = Math.min(safeLastSelectedIndex, idx)
-        const end = Math.max(safeLastSelectedIndex, idx)
-        const range = Array.from(
-          { length: end - start + 1 },
-          (_, i) => start + i,
-        )
-        const nextSet = new Set(current)
-
-        range.forEach((value) => {
-          nextSet.add(value)
-        })
-
-        return [...nextSet].sort((a, b) => a - b)
-      }
-
-      if (current.includes(idx)) {
-        return current.filter((value) => value !== idx)
-      }
-
-      return [...current, idx].sort((a, b) => a - b)
-    })
-
-    setLastSelectedIndex(idx)
-  }
-
-  const selectAllImages = () => {
-    setSelectedIndexes(item.images.map((_, idx) => idx))
-    setLastSelectedIndex(item.images.length ? item.images.length - 1 : null)
-  }
-
-  const clearSelectedImages = () => {
-    setSelectedIndexes([])
-    setLastSelectedIndex(null)
-  }
-
-  useEffect(() => {
-    if (!item.open) return
-
-    const handleKeyDown = (e) => {
-      if (e.key !== "Escape") return
-
-      const tagName = e.target?.tagName?.toLowerCase()
-      const isTypingTarget =
-        tagName === "input" ||
-        tagName === "textarea" ||
-        tagName === "select" ||
-        e.target?.isContentEditable
-
-      if (isTypingTarget) return
-      if (!safeSelectedIndexes.length) return
-
-      e.preventDefault()
-      setSelectedIndexes([])
-      setLastSelectedIndex(null)
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [item.open, safeSelectedIndexes.length])
 
   const moveImageToTop = (idx) => {
     if (idx <= 0) return
@@ -686,149 +1670,6 @@ const BoardItem = ({
         }
       }),
     )
-  }
-
-  const handleBulkMoveToTop = () => {
-    if (safeSelectedIndexes.length <= 1) return
-
-    markDirty()
-    setData((prev) =>
-      prev.map((it) => {
-        if (it.id !== item.id) return it
-        return {
-          ...it,
-          images: moveSelectedImagesToIndex(it.images, safeSelectedIndexes, 0),
-        }
-      }),
-    )
-
-    setSelectedIndexes([])
-    setLastSelectedIndex(null)
-  }
-
-  const handleBulkMoveToBottom = () => {
-    if (safeSelectedIndexes.length <= 1) return
-
-    markDirty()
-    setData((prev) =>
-      prev.map((it) => {
-        if (it.id !== item.id) return it
-        return {
-          ...it,
-          images: moveSelectedImagesToIndex(
-            it.images,
-            safeSelectedIndexes,
-            it.images.length,
-          ),
-        }
-      }),
-    )
-
-    setSelectedIndexes([])
-    setLastSelectedIndex(null)
-  }
-
-  const handleBulkDelete = () => {
-    if (safeSelectedIndexes.length <= 1) return
-    if (!confirm(`Delete ${safeSelectedIndexes.length} selected image(s)?`)) {
-      return
-    }
-
-    const selectedSet = new Set(safeSelectedIndexes)
-
-    markDirty()
-    setData((prev) =>
-      prev.map((it) =>
-        it.id !== item.id
-          ? it
-          : {
-              ...it,
-              images: it.images.filter((_, idx) => !selectedSet.has(idx)),
-            },
-      ),
-    )
-
-    setSelectedIndexes([])
-    setLastSelectedIndex(null)
-    setBulkMoveIndex("")
-  }
-
-  const handleBulkMoveSubmit = (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    if (safeSelectedIndexes.length <= 1) return
-
-    const targetIndex = clampIndex(bulkMoveIndex, item.images.length)
-    markDirty()
-
-    setData((prev) =>
-      prev.map((it) => {
-        if (it.id !== item.id) return it
-        return {
-          ...it,
-          images: moveSelectedImagesToIndex(
-            it.images,
-            safeSelectedIndexes,
-            targetIndex,
-          ),
-        }
-      }),
-    )
-
-    setSelectedIndexes([])
-    setLastSelectedIndex(null)
-    setBulkMoveIndex("")
-  }
-
-  const handleBulkApplyTitle = () => {
-    if (safeSelectedIndexes.length <= 1) return
-
-    const selectedSet = new Set(safeSelectedIndexes)
-
-    markDirty()
-    setData((prev) =>
-      prev.map((it) =>
-        it.id !== item.id
-          ? it
-          : {
-              ...it,
-              images: it.images.map((img, idx) =>
-                selectedSet.has(idx) ? { ...img, title: bulkTitle } : img,
-              ),
-            },
-      ),
-    )
-
-    setSelectedIndexes([])
-    setLastSelectedIndex(null)
-    setBulkTitle("")
-  }
-
-  const handleBulkApplyAuthor = () => {
-    if (safeSelectedIndexes.length <= 1) return
-
-    const selectedSet = new Set(safeSelectedIndexes)
-
-    markDirty()
-    setData((prev) =>
-      prev.map((it) =>
-        it.id !== item.id
-          ? it
-          : {
-              ...it,
-              images: it.images.map((img, idx) =>
-                selectedSet.has(idx)
-                  ? { ...img, imageAuthor: bulkAuthor }
-                  : img,
-              ),
-            },
-      ),
-    )
-
-    setSelectedIndexes([])
-    setLastSelectedIndex(null)
-    setBulkAuthor("")
   }
 
   const add10Images = () => {
@@ -907,10 +1748,6 @@ const BoardItem = ({
         it.id === item.id ? { ...it, images: dedupedImages } : it,
       ),
     )
-
-    setSelectedIndexes([])
-    setLastSelectedIndex(null)
-    setBulkMoveIndex("")
   }
 
   const handleImageDragEnd = (event) => {
@@ -927,8 +1764,6 @@ const BoardItem = ({
       prev.map((it) => (it.id === item.id ? { ...it, images: newImages } : it)),
     )
   }
-
-  const showBulkActions = safeSelectedIndexes.length > 1
 
   return (
     <div
@@ -956,6 +1791,9 @@ const BoardItem = ({
             {duplicateUrls.size > 0
               ? ` | ${duplicateUrls.size} duplicates`
               : ""}
+            {selectedIndexes.length > 0
+              ? ` | ${selectedIndexes.length} selected`
+              : ""}
           </span>
 
           {duplicateUrls.size > 0 && (
@@ -968,12 +1806,13 @@ const BoardItem = ({
           )}
         </div>
 
-        <button
-          style={{ width: "fit-content" }}
+        <AiOutlineDelete
+          className="icon-button"
+          size={ICON_SIZE}
           onClick={() => deleteItem(item.id)}
-        >
-          Delete Item
-        </button>
+          title="Delete Item"
+          style={{ cursor: "pointer" }}
+        />
       </div>
 
       {item.open && (
@@ -993,119 +1832,6 @@ const BoardItem = ({
           />
 
           <input type="file" accept=".json" onChange={handleLoadJsonToItem} />
-
-          {showBulkActions && (
-            <div
-              className="flex-column"
-              style={{
-                position: "fixed",
-                right: 20,
-                bottom: 20,
-                width: 360,
-                border: "1px solid #ddd",
-                background: "#fff",
-                padding: 10,
-                zIndex: 9999,
-                boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
-              }}
-            >
-              <div
-                className="flex-row"
-                style={{
-                  gap: 10,
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                }}
-              >
-                <div style={{ fontWeight: "bold" }}>
-                  Selected: {safeSelectedIndexes.length}
-                </div>
-
-                <button
-                  type="button"
-                  style={{ width: "fit-content" }}
-                  onClick={clearSelectedImages}
-                >
-                  Deselect All
-                </button>
-
-                <button
-                  type="button"
-                  onClick={selectAllImages}
-                  style={{ width: "fit-content" }}
-                >
-                  Select All
-                </button>
-              </div>
-
-              <form
-                onSubmit={handleBulkMoveSubmit}
-                className="flex-between"
-                style={{
-                  gap: 10,
-                  flexWrap: "nowrap",
-                }}
-              >
-                <input
-                  type="number"
-                  min="0"
-                  max={item.images.length}
-                  required
-                  placeholder="move selected to index"
-                  value={bulkMoveIndex}
-                  onChange={(e) => setBulkMoveIndex(e.target.value)}
-                />
-                <button type="submit">Move Selected</button>
-              </form>
-
-              <div
-                className="flex-between"
-                style={{
-                  gap: 10,
-                  flexWrap: "nowrap",
-                }}
-              >
-                <input
-                  placeholder="apply same title to selected"
-                  value={bulkTitle}
-                  onChange={(e) => setBulkTitle(e.target.value)}
-                />
-                <button type="button" onClick={handleBulkApplyTitle}>
-                  Apply Title
-                </button>
-              </div>
-
-              <div
-                className="flex-between"
-                style={{
-                  gap: 10,
-                  flexWrap: "nowrap",
-                }}
-              >
-                <input
-                  list={authorListId}
-                  placeholder="apply same author to selected"
-                  value={bulkAuthor}
-                  onChange={(e) => setBulkAuthor(e.target.value)}
-                />
-                <button type="button" onClick={handleBulkApplyAuthor}>
-                  Apply Author
-                </button>
-              </div>
-
-              <button type="button" onClick={handleBulkMoveToTop}>
-                Move Selected To Top
-              </button>
-
-              <button type="button" onClick={handleBulkMoveToBottom}>
-                Move Selected To Bottom
-              </button>
-
-              <button type="button" onClick={handleBulkDelete}>
-                Delete Selected
-              </button>
-            </div>
-          )}
 
           <DndContext
             collisionDetection={closestCenter}
@@ -1138,9 +1864,14 @@ const BoardItem = ({
                     isDuplicate={duplicateUrls.has(
                       normalizeImageUrl(img.image),
                     )}
-                    isSelected={safeSelectedIndexes.includes(idx)}
-                    onSelectImage={handleSelectImage}
+                    isSelected={selectedIndexes.includes(idx)}
+                    onSelectImage={(imageIndex, isShiftKey) => {
+                      setActiveBoardId(item.id)
+                      onSelectImage(imageIndex, isShiftKey)
+                    }}
                     maxIndex={item.images.length - 1}
+                    analyzeImage={analyzeSingleImage}
+                    isAnalyzing={!!analyzingMap[`${item.id}:${idx}`]}
                   />
                 ))}
               </div>
@@ -1196,6 +1927,8 @@ const SortableImage = ({
   isSelected,
   onSelectImage,
   maxIndex,
+  analyzeImage,
+  isAnalyzing,
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id })
@@ -1230,6 +1963,18 @@ const SortableImage = ({
       "_blank",
       "noopener,noreferrer",
     )
+  }
+
+  const handleAnalyze = async (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (!img.image?.trim()) {
+      alert("This item has no image URL.")
+      return
+    }
+
+    await analyzeImage(itemId, index, img.image, img.title, img.imageAuthor)
   }
 
   const handleMoveToIndexSubmit = (e) => {
@@ -1415,6 +2160,10 @@ const SortableImage = ({
           border: !img.imageAuthor?.trim() ? "2px solid green" : undefined,
         }}
       />
+
+      <button type="button" onClick={handleAnalyze} disabled={isAnalyzing}>
+        {isAnalyzing ? "Analyzing..." : "Analyze"}
+      </button>
 
       <button
         type="button"

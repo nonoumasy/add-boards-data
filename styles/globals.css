@@ -40,12 +40,13 @@ button,
 textarea,
 select {
   width: 100%;
-  padding: 5px;
+  padding: 10px;
 }
 
 button {
   font-size: 12px;
   text-transform: uppercase;
+  cursor: pointer;
 }
 
 .flex-row {
@@ -71,6 +72,19 @@ button {
 .uppercase {
   text-transform: uppercase;
   letter-spacing: 2px;
+}
+
+.icon-button {
+  width: 30px;
+  height: 30px;
+  padding: 5px;
+  display: grid;
+  place-items: center;
+  border-radius: 999;
+  border: none;
+  background-color: #222;
+  color: #ffffff;
+  cursor: pointer;
 }
 
 @media (prefers-color-scheme: dark) {
