@@ -28,6 +28,7 @@ import { AiOutlineDelete } from "react-icons/ai"
 import { FiMinus } from "react-icons/fi"
 import { RiImageAiFill } from "react-icons/ri"
 import { TbLayoutBottombarCollapse } from "react-icons/tb"
+import { FooterComp } from "@/components/FooterComp"
 
 const ICON_SIZE = 24
 const defaultImage =
@@ -1600,6 +1601,7 @@ const Home = () => {
           }}
         />
       )}
+      <FooterComp />
     </main>
   )
 }
@@ -1786,8 +1788,9 @@ const BoardItem = ({
     <div
       className="flex-column"
       style={{
-        border: "1px solid #ccc",
-        padding: 10,
+        border: "1px solid",
+        borderRadius: 10,
+        padding: 20,
       }}
     >
       <div className="flex-between">
@@ -2031,10 +2034,10 @@ const SortableImage = ({
     transform: CSS.Transform.toString(transform),
     transition,
     border: isSelected
-      ? "4px solid #111"
+      ? "5px solid dodgerblue"
       : isDuplicate
         ? "5px solid crimson"
-        : "1px solid #00000025",
+        : "1px solid",
     borderRadius: 10,
     padding: 10,
     cursor: "pointer",
@@ -2046,6 +2049,7 @@ const SortableImage = ({
     cursor: "pointer",
     background: "#000",
     border: "1px solid",
+    borderRadius: 10,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -2053,20 +2057,6 @@ const SortableImage = ({
     position: "relative",
     height: 200,
   }
-
-  const mediaStyle = isFullscreen
-    ? {
-        maxWidth: "100vw",
-        maxHeight: "100vh",
-        width: "auto",
-        height: "auto",
-        objectFit: "contain",
-      }
-    : {
-        width: "100%",
-        height: 200,
-        objectFit: "cover",
-      }
 
   const iframeStyle = isFullscreen
     ? {
@@ -2089,7 +2079,6 @@ const SortableImage = ({
     >
       <div className="flex-between">
         <div style={{ fontWeight: "bold" }}>{index + 1}</div>
-
         <div
           {...attributes}
           {...listeners}
@@ -2134,15 +2123,32 @@ const SortableImage = ({
             />
           </div>
 
-          <img loading="lazy" src={img.image} style={mediaStyle} />
+          <img
+            loading="lazy"
+            src={img.image}
+            style={
+              isFullscreen
+                ? {
+                    maxWidth: "100vw",
+                    maxHeight: "100vh",
+                    width: "auto",
+                    height: "auto",
+                    objectFit: "contain",
+                  }
+                : {
+                    width: "100%",
+                    objectFit: "cover",
+                  }
+            }
+            alt=""
+          />
         </div>
       ) : (
         <div
           style={{
             ...mediaWrapperStyle,
-            background: "#f3f3f3",
-            color: "#666",
-            border: "1px solid #ddd",
+            background: "#222",
+            border: "1px solid",
           }}
         >
           <span>No image</span>
