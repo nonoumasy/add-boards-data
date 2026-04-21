@@ -43,6 +43,12 @@ select {
   padding: 10px;
 }
 
+input,
+textarea {
+  border: 1px solid;
+  border-radius: 5px;
+}
+
 button {
   font-size: 12px;
   text-transform: uppercase;

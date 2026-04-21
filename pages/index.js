@@ -12,8 +12,6 @@ import {
   MdClear,
   MdOutlineFolder,
   MdSaveAlt,
-  MdChevronLeft,
-  MdChevronRight,
   MdMenu,
   MdDragIndicator,
   MdCheck,
@@ -267,6 +265,8 @@ const getInitialFloatingMenuPosition = () => {
   }
 }
 
+const getFloatingTransform = (x, y) => `translate3d(${x}px, ${y}px, 0)`
+
 const Home = () => {
   const [data, setData] = useState([])
   const [fileName, setFileName] = useState("boardsData")
@@ -291,7 +291,13 @@ const Home = () => {
     y: 20,
   })
   const [isMenuMinimized, setIsMenuMinimized] = useState(false)
+
   const dragStateRef = useRef(null)
+  const dragPositionRef = useRef({ x: 20, y: 20 })
+  const dragRafRef = useRef(null)
+  const menuRef = useRef(null)
+  const minimizedMenuRef = useRef(null)
+  const isMenuMinimizedRef = useRef(false)
 
   const markDirty = () => setDirty(true)
 
@@ -340,6 +346,20 @@ const Home = () => {
     : []
 
   const activeSelectionCount = activeSelectedIndexes.length
+
+  const previewImage =
+    activeBoard?.images.find(
+      (img) => img.image?.trim() && !getYoutubeEmbedUrl(img.image),
+    )?.image || defaultImage
+
+  const getFloatingNode = () =>
+    isMenuMinimizedRef.current ? minimizedMenuRef.current : menuRef.current
+
+  const applyFloatingPositionToNode = (x, y) => {
+    const node = getFloatingNode()
+    if (!node) return
+    node.style.transform = getFloatingTransform(x, y)
+  }
 
   const cycleBoard = (direction) => {
     if (!selectionBoardIds.length) return
@@ -445,39 +465,70 @@ const Home = () => {
     }))
   }
 
-  const handleMenuDragStart = (e) => {
-    if (e.button !== 0) return
-
-    dragStateRef.current = {
-      offsetX: e.clientX - floatingMenuPosition.x,
-      offsetY: e.clientY - floatingMenuPosition.y,
-    }
-
-    window.addEventListener("mousemove", handleMenuDragMove)
-    window.addEventListener("mouseup", handleMenuDragEnd)
-  }
-
   const handleMenuDragMove = (e) => {
     if (!dragStateRef.current) return
 
-    const menuWidth = isMenuMinimized ? 52 : 300
-    const menuHeight = isMenuMinimized ? 52 : 400
     const nextX = e.clientX - dragStateRef.current.offsetX
     const nextY = e.clientY - dragStateRef.current.offsetY
 
-    const maxX = Math.max(window.innerWidth - menuWidth - 8, 0)
-    const maxY = Math.max(window.innerHeight - menuHeight - 8, 0)
+    const maxX = Math.max(
+      window.innerWidth - dragStateRef.current.menuWidth - 8,
+      0,
+    )
+    const maxY = Math.max(
+      window.innerHeight - dragStateRef.current.menuHeight - 8,
+      0,
+    )
 
-    setFloatingMenuPosition({
+    dragPositionRef.current = {
       x: clampIndex(nextX, maxX),
       y: clampIndex(nextY, maxY),
+    }
+
+    if (dragRafRef.current) return
+
+    dragRafRef.current = window.requestAnimationFrame(() => {
+      dragRafRef.current = null
+      applyFloatingPositionToNode(
+        dragPositionRef.current.x,
+        dragPositionRef.current.y,
+      )
     })
   }
 
   const handleMenuDragEnd = () => {
+    if (!dragStateRef.current) return
+
     dragStateRef.current = null
     window.removeEventListener("mousemove", handleMenuDragMove)
     window.removeEventListener("mouseup", handleMenuDragEnd)
+
+    if (dragRafRef.current) {
+      window.cancelAnimationFrame(dragRafRef.current)
+      dragRafRef.current = null
+    }
+
+    setFloatingMenuPosition({
+      x: dragPositionRef.current.x,
+      y: dragPositionRef.current.y,
+    })
+  }
+
+  const handleMenuDragStart = (e) => {
+    if (e.button !== 0) return
+
+    const menuWidth = isMenuMinimizedRef.current ? 52 : 300
+    const menuHeight = isMenuMinimizedRef.current ? 52 : 400
+
+    dragStateRef.current = {
+      offsetX: e.clientX - dragPositionRef.current.x,
+      offsetY: e.clientY - dragPositionRef.current.y,
+      menuWidth,
+      menuHeight,
+    }
+
+    window.addEventListener("mousemove", handleMenuDragMove, { passive: true })
+    window.addEventListener("mouseup", handleMenuDragEnd)
   }
 
   const analyzeSingleImage = async (
@@ -527,8 +578,9 @@ const Home = () => {
                     : {
                         ...img,
                         title: payload?.title || currentTitle || "",
-                        imageAuthor:
-                          payload?.imageAuthor || currentAuthor || "",
+                        imageAuthor: img.imageAuthor?.trim()
+                          ? img.imageAuthor
+                          : payload?.imageAuthor || currentAuthor || "",
                       },
                 ),
               },
@@ -550,7 +602,7 @@ const Home = () => {
     images,
     options = {},
   ) => {
-    const { overwriteTitle = false, overwriteAuthor = false } = options
+    const { overwriteTitle = true, overwriteAuthor = false } = options
 
     const targets = selectedIndexes
       .map((index) => ({
@@ -657,10 +709,14 @@ const Home = () => {
         setDirty(true)
       }
 
-      setFloatingMenuPosition(getInitialFloatingMenuPosition())
+      const initialPosition = getInitialFloatingMenuPosition()
+      setFloatingMenuPosition(initialPosition)
+      dragPositionRef.current = initialPosition
 
       const savedMinimized = localStorage.getItem(FLOATING_MENU_MINIMIZED_KEY)
-      setIsMenuMinimized(savedMinimized === "true")
+      const minimized = savedMinimized === "true"
+      setIsMenuMinimized(minimized)
+      isMenuMinimizedRef.current = minimized
     } catch (err) {
       console.error(err)
     }
@@ -716,6 +772,8 @@ const Home = () => {
   useEffect(() => {
     if (!isMounted) return
 
+    dragPositionRef.current = floatingMenuPosition
+
     try {
       localStorage.setItem(
         FLOATING_MENU_POSITION_KEY,
@@ -729,12 +787,21 @@ const Home = () => {
   useEffect(() => {
     if (!isMounted) return
 
+    isMenuMinimizedRef.current = isMenuMinimized
+
     try {
       localStorage.setItem(FLOATING_MENU_MINIMIZED_KEY, String(isMenuMinimized))
     } catch (err) {
       console.error(err)
     }
   }, [isMenuMinimized, isMounted])
+
+  useEffect(() => {
+    applyFloatingPositionToNode(
+      dragPositionRef.current.x,
+      dragPositionRef.current.y,
+    )
+  }, [isMenuMinimized])
 
   useEffect(() => {
     if (!isMounted) return
@@ -761,6 +828,10 @@ const Home = () => {
 
   useEffect(() => {
     return () => {
+      if (dragRafRef.current) {
+        window.cancelAnimationFrame(dragRafRef.current)
+      }
+
       window.removeEventListener("mousemove", handleMenuDragMove)
       window.removeEventListener("mouseup", handleMenuDragEnd)
     }
@@ -1009,7 +1080,7 @@ const Home = () => {
         activeSelectedIndexes,
         activeBoard.images,
         {
-          overwriteTitle: false,
+          overwriteTitle: true,
           overwriteAuthor: false,
         },
       )
@@ -1287,18 +1358,24 @@ const Home = () => {
 
       {showGlobalBulkActions && !isMenuMinimized && (
         <div
+          ref={menuRef}
           className="flex-column"
           style={{
             position: "fixed",
-            left: floatingMenuPosition.x,
-            top: floatingMenuPosition.y,
+            left: 0,
+            top: 0,
+            transform: getFloatingTransform(
+              floatingMenuPosition.x,
+              floatingMenuPosition.y,
+            ),
             width: 300,
-            borderRadius: 20,
-            background: "#fff",
+            borderRadius: 10,
+            backgroundColor: "Canvas",
             padding: 20,
             zIndex: 9999,
             boxShadow: "0 5px 10px rgba(0,0,0,0.5)",
             gap: 10,
+            willChange: "transform",
           }}
         >
           <div
@@ -1313,17 +1390,7 @@ const Home = () => {
             onMouseDown={handleMenuDragStart}
             title="Drag menu"
           >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                fontWeight: "bold",
-              }}
-            >
-              <MdDragIndicator size={20} />
-              <span>Selection Menu</span>
-            </div>
+            <MdDragIndicator size={20} />
 
             <FiMinus
               size={20}
@@ -1334,6 +1401,9 @@ const Home = () => {
               }}
             />
           </div>
+
+          <div style={{ height: 5 }} />
+
           <div
             className="flex-row"
             style={{
@@ -1342,7 +1412,7 @@ const Home = () => {
             }}
           >
             <img
-              src={activeBoard.images[0].image || defaultImage}
+              src={previewImage}
               alt=""
               style={{
                 width: 60,
@@ -1368,20 +1438,6 @@ const Home = () => {
               })}
             </select>
           </div>
-          <div className="flex-row">
-            <MdChevronLeft
-              className="icon-button"
-              title="Previous board"
-              size={ICON_SIZE}
-              onClick={() => cycleBoard("prev")}
-            />
-            <MdChevronRight
-              className="icon-button"
-              title="Previous board"
-              size={ICON_SIZE}
-              onClick={() => cycleBoard("next")}
-            />
-          </div>
 
           <div style={{ position: "relative" }}>
             <input
@@ -1397,7 +1453,7 @@ const Home = () => {
               className="icon-button"
               title="Move Selected"
               size={ICON_SIZE}
-              onSubmit={handleBulkMoveSubmit}
+              onClick={handleBulkMoveSubmit}
               style={{
                 width: 20,
                 height: 20,
@@ -1459,6 +1515,9 @@ const Home = () => {
               }}
             />
           </div>
+
+          <div style={{ height: 5 }} />
+
           <div className="flex-row">
             <MdCheck
               className="icon-button"
@@ -1517,6 +1576,7 @@ const Home = () => {
 
       {showGlobalBulkActions && isMenuMinimized && (
         <MdMenu
+          ref={minimizedMenuRef}
           title="Show selection menu"
           onClick={() => setIsMenuMinimized(false)}
           onMouseDown={handleMenuDragStart}
@@ -1524,14 +1584,19 @@ const Home = () => {
           className="icon-button"
           style={{
             position: "fixed",
-            left: floatingMenuPosition.x,
-            top: floatingMenuPosition.y,
+            left: 0,
+            top: 0,
+            transform: getFloatingTransform(
+              floatingMenuPosition.x,
+              floatingMenuPosition.y,
+            ),
             zIndex: 9999,
             width: 50,
             height: 50,
             padding: 10,
             boxShadow: "0 5px 10px rgba(0,0,0,0.)",
             cursor: "grab",
+            willChange: "transform",
           }}
         />
       )}
@@ -2119,7 +2184,7 @@ const SortableImage = ({
           onChange={(e) => setMoveToIndexValue(e.target.value)}
           onClick={(e) => e.stopPropagation()}
         />
-        <button type="submit">Move To Index</button>
+        <button type="submit">Move</button>
       </form>
       <div className="flex-row">
         <input

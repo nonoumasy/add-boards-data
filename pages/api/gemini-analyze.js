@@ -1,4 +1,14 @@
-const GEMINI_MODEL = "gemini-2.5-flash"
+const sharpImport = () => import("sharp").then((mod) => mod.default)
+
+const GEMINI_MODEL = "gemini-2.5-flash-lite"
+
+const ensureTrailingPeriod = (text) => {
+  const value = String(text || "")
+    .trim()
+    .replace(/[.!?…]+$/, "")
+  if (!value) return ""
+  return `${value}.`
+}
 
 const stripCodeFence = (text) => {
   const value = String(text || "").trim()
@@ -30,20 +40,20 @@ const parseGeminiResult = (text) => {
   try {
     const parsed = JSON.parse(cleaned)
     return {
-      title: String(parsed?.title || "").trim(),
+      title: ensureTrailingPeriod(parsed?.title || ""),
       imageAuthor: String(parsed?.imageAuthor || "").trim(),
       description: String(parsed?.description || "").trim(),
     }
   } catch {
     return {
-      title: cleaned.trim(),
+      title: ensureTrailingPeriod(cleaned),
       imageAuthor: "",
       description: "",
     }
   }
 }
 
-const fetchImageAsInlinePart = async (imageUrl) => {
+const fetchImageBuffer = async (imageUrl) => {
   const response = await fetch(imageUrl)
 
   if (!response.ok) {
@@ -52,19 +62,69 @@ const fetchImageAsInlinePart = async (imageUrl) => {
 
   const contentType = response.headers.get("content-type") || "image/jpeg"
   const arrayBuffer = await response.arrayBuffer()
-  const data = Buffer.from(arrayBuffer).toString("base64")
+
+  return {
+    contentType,
+    inputBuffer: Buffer.from(arrayBuffer),
+  }
+}
+
+const buildInlineImagePart = async ({
+  inputBuffer,
+  contentType,
+  maxSize = 384,
+  jpegQuality = 75,
+}) => {
+  if (
+    !contentType.startsWith("image/") ||
+    contentType.includes("gif") ||
+    contentType.includes("svg")
+  ) {
+    return {
+      inline_data: {
+        mime_type: contentType,
+        data: inputBuffer.toString("base64"),
+      },
+    }
+  }
+
+  const sharp = await sharpImport()
+
+  const image = sharp(inputBuffer).rotate()
+  const metadata = await image.metadata()
+
+  let pipeline = image.resize({
+    width: maxSize,
+    height: maxSize,
+    fit: "inside",
+    withoutEnlargement: true,
+  })
+
+  let outputBuffer
+  let mimeType
+
+  if (metadata.hasAlpha) {
+    outputBuffer = await pipeline.png().toBuffer()
+    mimeType = "image/png"
+  } else {
+    outputBuffer = await pipeline
+      .jpeg({
+        quality: jpegQuality,
+        mozjpeg: true,
+      })
+      .toBuffer()
+    mimeType = "image/jpeg"
+  }
 
   return {
     inline_data: {
-      mime_type: contentType,
-      data,
+      mime_type: mimeType,
+      data: outputBuffer.toString("base64"),
     },
   }
 }
 
-const analyzeImageWithGemini = async ({ imageUrl, apiKey }) => {
-  const imagePart = await fetchImageAsInlinePart(imageUrl)
-
+const runGeminiRequest = async ({ imagePart, apiKey }) => {
   const prompt = [
     "You are cleaning image metadata for a private JSON dataset.",
     "Return JSON only.",
@@ -118,6 +178,60 @@ const analyzeImageWithGemini = async ({ imageUrl, apiKey }) => {
   }
 
   return parseGeminiResult(text)
+}
+
+const analyzeImageWithGemini = async ({ imageUrl, apiKey }) => {
+  const { inputBuffer, contentType } = await fetchImageBuffer(imageUrl)
+
+  const smallImagePart = await buildInlineImagePart({
+    inputBuffer,
+    contentType,
+    maxSize: 384,
+    jpegQuality: 75,
+  })
+
+  let firstPass
+
+  try {
+    firstPass = await runGeminiRequest({
+      imagePart: smallImagePart,
+      apiKey,
+    })
+  } catch (err) {
+    const largerImagePart = await buildInlineImagePart({
+      inputBuffer,
+      contentType,
+      maxSize: 768,
+      jpegQuality: 82,
+    })
+
+    return await runGeminiRequest({
+      imagePart: largerImagePart,
+      apiKey,
+    })
+  }
+
+  const looksWeak =
+    !firstPass.title ||
+    firstPass.title.length < 3 ||
+    /^image$/i.test(firstPass.title) ||
+    /^untitled$/i.test(firstPass.title)
+
+  if (!looksWeak) {
+    return firstPass
+  }
+
+  const largerImagePart = await buildInlineImagePart({
+    inputBuffer,
+    contentType,
+    maxSize: 768,
+    jpegQuality: 82,
+  })
+
+  return await runGeminiRequest({
+    imagePart: largerImagePart,
+    apiKey,
+  })
 }
 
 const handler = async (req, res) => {
