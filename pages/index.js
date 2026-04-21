@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 import { useState, useEffect, useMemo, useRef } from "react"
 import { DndContext, closestCenter } from "@dnd-kit/core"
 import {
@@ -28,10 +29,11 @@ import {
 import { AiOutlineDelete } from "react-icons/ai"
 import { FiMinus } from "react-icons/fi"
 import { RiImageAiFill } from "react-icons/ri"
-import { BsCaretUpSquareFill } from "react-icons/bs"
 import { TbLayoutBottombarCollapse } from "react-icons/tb"
 
 const ICON_SIZE = 24
+const defaultImage =
+  "https://i.pinimg.com/1200x/27/ff/37/27ff3733ece0a0d09d76d1288f2dbef4.jpg"
 
 const STORAGE_KEY = "json-editor-data"
 const FILE_HANDLE_DB = "json-editor-file-db"
@@ -1326,72 +1328,28 @@ const Home = () => {
             <FiMinus
               size={20}
               title="Minimize menu"
-              // className="icon-button"
               onClick={(e) => {
                 e.stopPropagation()
                 setIsMenuMinimized(true)
               }}
             />
           </div>
-
           <div
+            className="flex-row"
             style={{
-              display: "grid",
-              gridTemplateColumns: "50px 1fr",
-              gap: 10,
+              flexWrap: "nowrap",
               alignItems: "center",
             }}
           >
-            <div
+            <img
+              src={activeBoard.images[0].image || defaultImage}
+              alt=""
               style={{
-                width: 50,
-                height: 50,
-                borderRadius: 10,
-                background: "#f3f3f3",
-                overflow: "hidden",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
+                width: 60,
+                height: 40,
+                objectFit: "cover",
               }}
-            >
-              {activeBoard?.images?.[0]?.image ? (
-                <img
-                  src={activeBoard.images[0].image}
-                  alt=""
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                    display: "block",
-                  }}
-                />
-              ) : (
-                <span style={{ fontSize: 11, opacity: 0.6 }}>No image</span>
-              )}
-            </div>
-
-            <div className="flex-column" style={{ gap: 4 }}>
-              <div
-                className="flex-row"
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  alignItems: "baseline",
-                  flexWrap: "wrap",
-                }}
-              >
-                <div style={{ fontWeight: "bold", fontSize: 18 }}>
-                  {activeBoard.title || "Untitled"}
-                </div>
-
-                <div style={{ fontSize: 12, opacity: 0.75 }}>
-                  {activeSelectionCount} selected
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex-row">
+            />
             <select
               value={activeBoard.id}
               onChange={(e) => setActiveBoardId(e.target.value)}
@@ -1409,13 +1367,16 @@ const Home = () => {
                 )
               })}
             </select>
-
+          </div>
+          <div className="flex-row">
             <MdChevronLeft
+              className="icon-button"
               title="Previous board"
               size={ICON_SIZE}
               onClick={() => cycleBoard("prev")}
             />
             <MdChevronRight
+              className="icon-button"
               title="Previous board"
               size={ICON_SIZE}
               onClick={() => cycleBoard("next")}
@@ -1498,59 +1459,54 @@ const Home = () => {
               }}
             />
           </div>
-          <div className="flex-between">
-            <div className="flex-row">
-              <MdCheck
-                className="icon-button"
-                size={ICON_SIZE}
-                onClick={selectAllImagesForActiveBoard}
-                title="Select All In Board"
-                style={{ cursor: "pointer" }}
-              />
-              <IoMdClose
-                className="icon-button"
-                size={ICON_SIZE}
-                onClick={() => clearBoardSelection(activeBoard.id)}
-                title="Deselect Board"
-                style={{ cursor: "pointer" }}
-              />
-              <RiImageAiFill
-                disabled={isBatchAnalyzing}
-                className="icon-button"
-                size={ICON_SIZE}
-                onClick={handleAnalyzeSelected}
-                title={
-                  isBatchAnalyzing
-                    ? "Analyzing Selected..."
-                    : "Analyze Selected"
-                }
-                style={{ cursor: "pointer" }}
-              />
-            </div>
-            <div className="flex-row">
-              <IoMdArrowRoundUp
-                className="icon-button"
-                size={ICON_SIZE}
-                onClick={handleBulkMoveToTop}
-                title="Move Selected To Top"
-                style={{ cursor: "pointer" }}
-              />
-              <IoMdArrowRoundDown
-                className="icon-button"
-                size={ICON_SIZE}
-                onClick={handleBulkMoveToBottom}
-                title="Move Selected To Bottom"
-                style={{ cursor: "pointer" }}
-              />
-              <AiOutlineDelete
-                className="icon-button"
-                size={ICON_SIZE}
-                onClick={handleBulkDelete}
-                title="Delete Selected"
-                style={{ cursor: "pointer" }}
-              />
-            </div>
+          <div className="flex-row">
+            <MdCheck
+              className="icon-button"
+              size={ICON_SIZE}
+              onClick={selectAllImagesForActiveBoard}
+              title="Select All In Board"
+              style={{ cursor: "pointer" }}
+            />
+            <IoMdClose
+              className="icon-button"
+              size={ICON_SIZE}
+              onClick={() => clearBoardSelection(activeBoard.id)}
+              title="Deselect Board"
+              style={{ cursor: "pointer" }}
+            />
+            <RiImageAiFill
+              disabled={isBatchAnalyzing}
+              className="icon-button"
+              size={ICON_SIZE}
+              onClick={handleAnalyzeSelected}
+              title={
+                isBatchAnalyzing ? "Analyzing Selected..." : "Analyze Selected"
+              }
+              style={{ cursor: "pointer" }}
+            />
+            <IoMdArrowRoundUp
+              className="icon-button"
+              size={ICON_SIZE}
+              onClick={handleBulkMoveToTop}
+              title="Move Selected To Top"
+              style={{ cursor: "pointer" }}
+            />
+            <IoMdArrowRoundDown
+              className="icon-button"
+              size={ICON_SIZE}
+              onClick={handleBulkMoveToBottom}
+              title="Move Selected To Bottom"
+              style={{ cursor: "pointer" }}
+            />
+            <AiOutlineDelete
+              className="icon-button"
+              size={ICON_SIZE}
+              onClick={handleBulkDelete}
+              title="Delete Selected"
+              style={{ cursor: "pointer" }}
+            />
           </div>
+
           <datalist id={activeAuthorListId}>
             {activeFrequentAuthors.map((author) => (
               <option key={author} value={author} />
@@ -1560,29 +1516,24 @@ const Home = () => {
       )}
 
       {showGlobalBulkActions && isMenuMinimized && (
-        <button
-          type="button"
+        <MdMenu
+          title="Show selection menu"
           onClick={() => setIsMenuMinimized(false)}
           onMouseDown={handleMenuDragStart}
-          title="Show selection menu"
+          size={ICON_SIZE}
+          className="icon-button"
           style={{
             position: "fixed",
             left: floatingMenuPosition.x,
             top: floatingMenuPosition.y,
             zIndex: 9999,
-            width: 52,
-            height: 52,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            border: "1px solid #ddd",
-            background: "#fff",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
+            width: 50,
+            height: 50,
+            padding: 10,
+            boxShadow: "0 5px 10px rgba(0,0,0,0.)",
             cursor: "grab",
           }}
-        >
-          <MdMenu size={ICON_SIZE} />
-        </button>
+        />
       )}
     </main>
   )
