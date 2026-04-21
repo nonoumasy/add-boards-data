@@ -2017,8 +2017,9 @@ const SortableImage = ({
       ? "4px solid #111"
       : isDuplicate
         ? "5px solid crimson"
-        : "1px solid #ddd",
-    padding: 8,
+        : "1px solid #00000025",
+    borderRadius: 10,
+    padding: 10,
     cursor: "pointer",
     userSelect: "none",
   }
@@ -2148,43 +2149,6 @@ const SortableImage = ({
         }}
       />
 
-      <input
-        list={authorListId}
-        placeholder="image author"
-        value={img.imageAuthor}
-        onChange={(e) =>
-          updateImage(itemId, index, "imageAuthor", e.target.value)
-        }
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          border: !img.imageAuthor?.trim() ? "2px solid green" : undefined,
-        }}
-      />
-
-      <button type="button" onClick={handleAnalyze} disabled={isAnalyzing}>
-        {isAnalyzing ? "Analyzing..." : "Analyze"}
-      </button>
-
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation()
-          moveImageToTop(index)
-        }}
-      >
-        Move to Top
-      </button>
-
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation()
-          moveImageToBottom(index)
-        }}
-      >
-        Move to Bottom
-      </button>
-
       <form
         onSubmit={handleMoveToIndexSubmit}
         style={{ display: "flex", gap: 10 }}
@@ -2201,16 +2165,57 @@ const SortableImage = ({
         />
         <button type="submit">Move To Index</button>
       </form>
-
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation()
-          deleteImage(itemId, index)
-        }}
-      >
-        Delete
-      </button>
+      <div className="flex-row">
+        <input
+          list={authorListId}
+          placeholder="image author"
+          value={img.imageAuthor}
+          onChange={(e) =>
+            updateImage(itemId, index, "imageAuthor", e.target.value)
+          }
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            border: !img.imageAuthor?.trim() ? "2px solid green" : undefined,
+          }}
+        />
+        <RiImageAiFill
+          className="icon-button"
+          size={ICON_SIZE}
+          onClick={handleAnalyze}
+          title={isAnalyzing ? "Analyzing..." : "Analyze"}
+          style={{ cursor: "pointer" }}
+        />
+        <IoMdArrowRoundUp
+          className="icon-button"
+          size={ICON_SIZE}
+          onClick={(e) => {
+            e.stopPropagation()
+            moveImageToTop(index)
+          }}
+          title="Move To Top"
+          style={{ cursor: "pointer" }}
+        />
+        <IoMdArrowRoundDown
+          className="icon-button"
+          size={ICON_SIZE}
+          onClick={(e) => {
+            e.stopPropagation()
+            moveImageToBottom(index)
+          }}
+          title="Move To Bottom"
+          style={{ cursor: "pointer" }}
+        />
+        <AiOutlineDelete
+          className="icon-button"
+          size={ICON_SIZE}
+          onClick={(e) => {
+            e.stopPropagation()
+            deleteImage(itemId, index)
+          }}
+          title="Delete"
+          style={{ cursor: "pointer" }}
+        />
+      </div>
     </div>
   )
 }
