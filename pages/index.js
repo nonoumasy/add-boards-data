@@ -2033,8 +2033,8 @@ const SortableImage = ({
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    border: isSelected
-      ? "5px solid dodgerblue"
+    outline: isSelected
+      ? "4px solid dodgerblue"
       : isDuplicate
         ? "5px solid crimson"
         : "1px solid",
