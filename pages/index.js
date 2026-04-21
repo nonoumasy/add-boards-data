@@ -1,4 +1,5 @@
-/* eslint-disable @next/next/no-img-element */
+// index.js
+// index.js
 import { useState, useEffect, useMemo, useRef } from "react"
 import { DndContext, closestCenter } from "@dnd-kit/core"
 import {
@@ -26,7 +27,6 @@ import {
 } from "react-icons/io"
 import { AiOutlineDelete } from "react-icons/ai"
 import { FiMinus } from "react-icons/fi"
-import { RiImageAiFill } from "react-icons/ri"
 import { TbLayoutBottombarCollapse } from "react-icons/tb"
 import { FooterComp } from "@/components/FooterComp"
 
@@ -231,11 +231,6 @@ const moveSelectedImagesToIndex = (images, selectedIndexes, targetIndex) => {
   return next
 }
 
-const sleep = (ms) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms)
-  })
-
 const getInitialFloatingMenuPosition = () => {
   if (typeof window === "undefined") {
     return { x: 20, y: 20 }
@@ -275,8 +270,6 @@ const Home = () => {
   const [fileHandle, setFileHandle] = useState(null)
   const [supportsFsAccess, setSupportsFsAccess] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
-  const [analyzingMap, setAnalyzingMap] = useState({})
-  const [globalMessage, setGlobalMessage] = useState("")
 
   const [selectionByBoard, setSelectionByBoard] = useState({})
   const [lastSelectedByBoard, setLastSelectedByBoard] = useState({})
@@ -285,7 +278,6 @@ const Home = () => {
   const [bulkMoveIndex, setBulkMoveIndex] = useState("")
   const [bulkTitle, setBulkTitle] = useState("")
   const [bulkAuthor, setBulkAuthor] = useState("")
-  const [isBatchAnalyzing, setIsBatchAnalyzing] = useState(false)
 
   const [floatingMenuPosition, setFloatingMenuPosition] = useState({
     x: 20,
@@ -301,13 +293,6 @@ const Home = () => {
   const isMenuMinimizedRef = useRef(false)
 
   const markDirty = () => setDirty(true)
-
-  const setAnalyzing = (key, value) => {
-    setAnalyzingMap((prev) => ({
-      ...prev,
-      [key]: value,
-    }))
-  }
 
   const selectionBoardIds = useMemo(
     () =>
@@ -518,8 +503,8 @@ const Home = () => {
   const handleMenuDragStart = (e) => {
     if (e.button !== 0) return
 
-    const menuWidth = isMenuMinimizedRef.current ? 52 : 300
-    const menuHeight = isMenuMinimizedRef.current ? 52 : 400
+    const menuWidth = isMenuMinimizedRef.current ? 50 : 300
+    const menuHeight = isMenuMinimizedRef.current ? 50 : 320
 
     dragStateRef.current = {
       offsetX: e.clientX - dragPositionRef.current.x,
@@ -530,166 +515,6 @@ const Home = () => {
 
     window.addEventListener("mousemove", handleMenuDragMove, { passive: true })
     window.addEventListener("mouseup", handleMenuDragEnd)
-  }
-
-  const analyzeSingleImage = async (
-    itemId,
-    index,
-    imageUrl,
-    currentTitle,
-    currentAuthor,
-  ) => {
-    if (!imageUrl?.trim()) {
-      alert("Missing image URL.")
-      return
-    }
-
-    const imageKey = `${itemId}:${index}`
-
-    try {
-      setAnalyzing(imageKey, true)
-      setGlobalMessage("")
-
-      const response = await fetch("/api/gemini-analyze", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          imageUrl,
-        }),
-      })
-
-      const payload = await response.json()
-
-      if (!response.ok) {
-        throw new Error(payload?.error || "Analyze failed.")
-      }
-
-      markDirty()
-      setData((prev) =>
-        prev.map((item) =>
-          item.id !== itemId
-            ? item
-            : {
-                ...item,
-                images: item.images.map((img, i) =>
-                  i !== index
-                    ? img
-                    : {
-                        ...img,
-                        title: payload?.title || currentTitle || "",
-                        imageAuthor: img.imageAuthor?.trim()
-                          ? img.imageAuthor
-                          : payload?.imageAuthor || currentAuthor || "",
-                      },
-                ),
-              },
-        ),
-      )
-
-      setGlobalMessage("Analyze complete.")
-    } catch (err) {
-      console.error(err)
-      alert(err.message || "Analyze failed.")
-    } finally {
-      setAnalyzing(imageKey, false)
-    }
-  }
-
-  const analyzeSelectedImages = async (
-    itemId,
-    selectedIndexes,
-    images,
-    options = {},
-  ) => {
-    const { overwriteTitle = true, overwriteAuthor = false } = options
-
-    const targets = selectedIndexes
-      .map((index) => ({
-        index,
-        image: images[index],
-      }))
-      .filter((entry) => entry?.image?.image?.trim())
-
-    if (!targets.length) {
-      alert("No valid image URLs in selected items.")
-      return
-    }
-
-    try {
-      setGlobalMessage(`Analyzing ${targets.length} image(s)...`)
-
-      for (let i = 0; i < targets.length; i += 1) {
-        const entry = targets[i]
-        const imageKey = `${itemId}:${entry.index}`
-
-        try {
-          setAnalyzing(imageKey, true)
-
-          const response = await fetch("/api/gemini-analyze", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              imageUrl: entry.image.image,
-            }),
-          })
-
-          const payload = await response.json()
-
-          if (!response.ok) {
-            throw new Error(payload?.error || "Analyze failed.")
-          }
-
-          markDirty()
-          setData((prev) =>
-            prev.map((item) =>
-              item.id !== itemId
-                ? item
-                : {
-                    ...item,
-                    images: item.images.map((img, idx) => {
-                      if (idx !== entry.index) return img
-
-                      const nextTitle =
-                        overwriteTitle || !img.title?.trim()
-                          ? payload?.title || img.title || ""
-                          : img.title
-
-                      const nextAuthor =
-                        overwriteAuthor || !img.imageAuthor?.trim()
-                          ? payload?.imageAuthor || img.imageAuthor || ""
-                          : img.imageAuthor
-
-                      return {
-                        ...img,
-                        title: nextTitle,
-                        imageAuthor: nextAuthor,
-                      }
-                    }),
-                  },
-            ),
-          )
-        } catch (err) {
-          console.error(err)
-        } finally {
-          setAnalyzing(imageKey, false)
-        }
-
-        setGlobalMessage(`Analyzed ${i + 1} of ${targets.length} image(s)...`)
-
-        if (i < targets.length - 1) {
-          await sleep(250)
-        }
-      }
-
-      setGlobalMessage(`Finished analyzing ${targets.length} image(s).`)
-    } catch (err) {
-      console.error(err)
-      alert(err.message || "Batch analyze failed.")
-    }
   }
 
   useEffect(() => {
@@ -1067,29 +892,6 @@ const Home = () => {
     })
   }
 
-  const handleAnalyzeSelected = async () => {
-    if (!activeBoard || activeSelectedIndexes.length === 0) {
-      alert("Select image(s) first.")
-      return
-    }
-
-    setIsBatchAnalyzing(true)
-
-    try {
-      await analyzeSelectedImages(
-        activeBoard.id,
-        activeSelectedIndexes,
-        activeBoard.images,
-        {
-          overwriteTitle: true,
-          overwriteAuthor: false,
-        },
-      )
-    } finally {
-      setIsBatchAnalyzing(false)
-    }
-  }
-
   const handleBulkMoveSubmit = (e) => {
     e.preventDefault()
     e.stopPropagation()
@@ -1264,20 +1066,6 @@ const Home = () => {
 
   return (
     <main className="flex-column" style={{ padding: 20 }}>
-      {globalMessage ? (
-        <div
-          style={{
-            marginBottom: 12,
-            padding: 10,
-            border: "1px solid #ccc",
-            fontSize: 12,
-            fontWeight: "bold",
-          }}
-        >
-          {globalMessage}
-        </div>
-      ) : null}
-
       <div className="flex-row">
         <MdOutlineFolder
           className="icon-button"
@@ -1344,8 +1132,6 @@ const Home = () => {
               deleteImage={deleteImage}
               setData={setData}
               markDirty={markDirty}
-              analyzeSingleImage={analyzeSingleImage}
-              analyzingMap={analyzingMap}
               selectedIndexes={(selectionByBoard[item.id] || []).filter(
                 (selectedIndex) => selectedIndex < item.images.length,
               )}
@@ -1442,34 +1228,6 @@ const Home = () => {
 
           <div style={{ position: "relative" }}>
             <input
-              type="number"
-              min="0"
-              max={activeBoard.images.length}
-              required
-              placeholder="move selected to index"
-              value={bulkMoveIndex}
-              onChange={(e) => setBulkMoveIndex(e.target.value)}
-            />
-            <IoMdArrowUp
-              className="icon-button"
-              title="Move Selected"
-              size={ICON_SIZE}
-              onClick={handleBulkMoveSubmit}
-              style={{
-                width: 20,
-                height: 20,
-                padding: 3,
-                position: "absolute",
-                right: 10,
-                top: "50%",
-                transform: "translateY(-50%)",
-                cursor: "pointer",
-              }}
-            />
-          </div>
-
-          <div style={{ position: "relative" }}>
-            <input
               placeholder="apply same title to selected"
               value={bulkTitle}
               onChange={(e) => setBulkTitle(e.target.value)}
@@ -1517,6 +1275,21 @@ const Home = () => {
             />
           </div>
 
+          <div style={{ display: "flex", gap: 10 }}>
+            <input
+              type="number"
+              min="0"
+              max={activeBoard.images.length}
+              required
+              placeholder="target index"
+              value={bulkMoveIndex}
+              onChange={(e) => setBulkMoveIndex(e.target.value)}
+            />
+            <button onClick={handleBulkMoveSubmit} title="Move Selected">
+              Move
+            </button>
+          </div>
+
           <div style={{ height: 5 }} />
 
           <div className="flex-row">
@@ -1532,16 +1305,6 @@ const Home = () => {
               size={ICON_SIZE}
               onClick={() => clearBoardSelection(activeBoard.id)}
               title="Deselect Board"
-              style={{ cursor: "pointer" }}
-            />
-            <RiImageAiFill
-              disabled={isBatchAnalyzing}
-              className="icon-button"
-              size={ICON_SIZE}
-              onClick={handleAnalyzeSelected}
-              title={
-                isBatchAnalyzing ? "Analyzing Selected..." : "Analyze Selected"
-              }
               style={{ cursor: "pointer" }}
             />
             <IoMdArrowRoundUp
@@ -1601,6 +1364,7 @@ const Home = () => {
           }}
         />
       )}
+
       <FooterComp />
     </main>
   )
@@ -1616,8 +1380,6 @@ const BoardItem = ({
   deleteImage,
   setData,
   markDirty,
-  analyzeSingleImage,
-  analyzingMap,
   selectedIndexes,
   onSelectImage,
   setActiveBoardId,
@@ -1890,8 +1652,6 @@ const BoardItem = ({
                       onSelectImage(imageIndex, isShiftKey)
                     }}
                     maxIndex={item.images.length - 1}
-                    analyzeImage={analyzeSingleImage}
-                    isAnalyzing={!!analyzingMap[`${item.id}:${idx}`]}
                   />
                 ))}
               </div>
@@ -1947,8 +1707,6 @@ const SortableImage = ({
   isSelected,
   onSelectImage,
   maxIndex,
-  analyzeImage,
-  isAnalyzing,
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id })
@@ -1983,18 +1741,6 @@ const SortableImage = ({
       "_blank",
       "noopener,noreferrer",
     )
-  }
-
-  const handleAnalyze = async (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    if (!img.image?.trim()) {
-      alert("This item has no image URL.")
-      return
-    }
-
-    await analyzeImage(itemId, index, img.image, img.title, img.imageAuthor)
   }
 
   const handleMoveToIndexSubmit = (e) => {
@@ -2114,13 +1860,6 @@ const SortableImage = ({
                 cursor: "pointer",
               }}
             />
-            <RiImageAiFill
-              className="icon-button"
-              size={ICON_SIZE}
-              onClick={handleAnalyze}
-              title={isAnalyzing ? "Analyzing..." : "Analyze"}
-              style={{ cursor: "pointer" }}
-            />
           </div>
 
           <img
@@ -2176,7 +1915,18 @@ const SortableImage = ({
           border: !img.title?.trim() ? "2px solid crimson" : undefined,
         }}
       />
-
+      <input
+        list={authorListId}
+        placeholder="image author"
+        value={img.imageAuthor}
+        onChange={(e) =>
+          updateImage(itemId, index, "imageAuthor", e.target.value)
+        }
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          border: !img.imageAuthor?.trim() ? "2px solid green" : undefined,
+        }}
+      />
       <form
         onSubmit={handleMoveToIndexSubmit}
         style={{ display: "flex", gap: 10 }}
@@ -2194,18 +1944,6 @@ const SortableImage = ({
         <button type="submit">Move</button>
       </form>
       <div className="flex-row">
-        <input
-          list={authorListId}
-          placeholder="image author"
-          value={img.imageAuthor}
-          onChange={(e) =>
-            updateImage(itemId, index, "imageAuthor", e.target.value)
-          }
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            border: !img.imageAuthor?.trim() ? "2px solid green" : undefined,
-          }}
-        />
         <IoMdArrowRoundUp
           className="icon-button"
           size={ICON_SIZE}
