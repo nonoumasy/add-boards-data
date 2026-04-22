@@ -1,5 +1,4 @@
 // index.js
-// index.js
 import { useState, useEffect, useMemo, useRef } from "react"
 import { DndContext, closestCenter } from "@dnd-kit/core"
 import {
