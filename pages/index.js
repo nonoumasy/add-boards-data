@@ -1,3 +1,4 @@
+// pages/index.js
 import dynamic from "next/dynamic"
 
 const JsonEditorPage = dynamic(() => import("@/components/JsonEditorPage"), {

@@ -1,3 +1,4 @@
+// components/JsonEditorPage.js
 import { useState, useEffect, useMemo, useRef } from "react"
 import { DndContext, closestCenter } from "@dnd-kit/core"
 import {
@@ -16,6 +17,7 @@ import {
   MdClose,
   MdContentCopy,
   MdOutlineDragIndicator,
+  MdAutoAwesome,
 } from "react-icons/md"
 import {
   IoLogoGoogle,
@@ -26,9 +28,14 @@ import {
   IoMdClose,
 } from "react-icons/io"
 import { AiOutlineDelete } from "react-icons/ai"
-import { TbLayoutBottombarCollapse, TbNumber10Small } from "react-icons/tb"
+import {
+  TbLayoutBottombarCollapse,
+  TbNumber10Small,
+  TbPhotoMinus,
+} from "react-icons/tb"
 import { FooterComp } from "@/components/FooterComp"
 import { HiPlusSm } from "react-icons/hi"
+import { GoCircleSlash } from "react-icons/go"
 
 const ICON_SIZE = 24
 const defaultImage =
@@ -39,8 +46,8 @@ const FILE_HANDLE_DB = "json-editor-file-db"
 const FILE_HANDLE_STORE = "handles"
 const FILE_HANDLE_KEY = "active-json-file"
 const FLOATING_MENU_POSITION_KEY = "json-editor-floating-menu-position-v1"
+const ANALYZE_CONCURRENCY = 3
 
-// ---------- INDEXEDDB ----------
 const openFileHandleDb = () =>
   new Promise((resolve, reject) => {
     const request = indexedDB.open(FILE_HANDLE_DB, 1)
@@ -97,7 +104,6 @@ const deleteFileHandleFromDb = async () => {
   })
 }
 
-// ---------- HELPERS ----------
 const normalizeImageUrl = (url) => {
   const raw = String(url || "").trim()
   if (!raw) return ""
@@ -289,6 +295,29 @@ const closeAllBoards = (items) =>
     open: false,
   }))
 
+const runWithConcurrency = async (items, limit, worker) => {
+  const results = new Array(items.length)
+  let nextIndex = 0
+
+  const runWorker = async () => {
+    while (true) {
+      const currentIndex = nextIndex
+      nextIndex += 1
+
+      if (currentIndex >= items.length) {
+        return
+      }
+
+      results[currentIndex] = await worker(items[currentIndex], currentIndex)
+    }
+  }
+
+  const workerCount = Math.max(1, Math.min(limit, items.length))
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()))
+
+  return results
+}
+
 const JsonEditorPage = () => {
   const [data, setData] = useState(() => {
     try {
@@ -326,6 +355,7 @@ const JsonEditorPage = () => {
   )
 
   const [fullscreenViewer, setFullscreenViewer] = useState(null)
+  const [isAnalyzingTitles, setIsAnalyzingTitles] = useState(false)
 
   const dragStateRef = useRef(null)
   const dragPositionRef = useRef(getInitialFloatingMenuPosition())
@@ -588,6 +618,115 @@ const JsonEditorPage = () => {
     setBulkMoveBoardId("")
   }
 
+  const analyzeSingleImageTitle = async (imageUrl) => {
+    const response = await fetch("/api/gemini-analyze", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        image: imageUrl,
+      }),
+    })
+
+    const result = await response.json()
+
+    if (!response.ok) {
+      throw new Error(result?.error || "Analyze request failed")
+    }
+
+    return String(result?.title || "").trim()
+  }
+
+  const handleAnalyzeSelectedTitles = async () => {
+    if (menuDisabled || activeSelectedIndexes.length === 0 || !openBoard) {
+      return
+    }
+
+    const selectedPayload = activeSelectedIndexes
+      .map((idx) => ({
+        index: idx,
+        image: openBoard.images[idx]?.image || "",
+      }))
+      .filter((item) => item.image.trim())
+
+    if (!selectedPayload.length) {
+      alert("No valid image URLs in the current selection.")
+      return
+    }
+
+    try {
+      setIsAnalyzingTitles(true)
+
+      const results = await runWithConcurrency(
+        selectedPayload,
+        ANALYZE_CONCURRENCY,
+        async (item) => {
+          try {
+            const title = await analyzeSingleImageTitle(item.image)
+
+            return {
+              index: item.index,
+              ok: true,
+              title,
+            }
+          } catch (err) {
+            return {
+              index: item.index,
+              ok: false,
+              title: "",
+              error: err.message || "Analyze failed",
+            }
+          }
+        },
+      )
+
+      const titleByIndex = new Map()
+      const failed = []
+
+      results.forEach((item) => {
+        if (item?.ok && item?.title) {
+          titleByIndex.set(item.index, item.title)
+        } else if (item && !item.ok) {
+          failed.push(item)
+        }
+      })
+
+      if (!titleByIndex.size) {
+        const firstError = failed[0]?.error || "No titles were generated."
+        alert(firstError)
+        return
+      }
+
+      markDirty()
+      setData((prev) =>
+        prev.map((item) => {
+          if (item.id !== openBoard.id) return item
+
+          return {
+            ...item,
+            images: item.images.map((img, idx) =>
+              titleByIndex.has(idx)
+                ? { ...img, title: titleByIndex.get(idx) }
+                : img,
+            ),
+          }
+        }),
+      )
+
+      if (failed.length > 0) {
+        alert(
+          `Generated ${titleByIndex.size} title(s). ${failed.length} failed.`,
+        )
+      }
+    } catch (err) {
+      console.error(err)
+      alert(err.message || "Analyze failed")
+    } finally {
+      setIsAnalyzingTitles(false)
+    }
+  }
+
   const handleMenuDragMove = (e) => {
     if (!dragStateRef.current) return
 
@@ -644,7 +783,7 @@ const JsonEditorPage = () => {
       offsetX: e.clientX - dragPositionRef.current.x,
       offsetY: e.clientY - dragPositionRef.current.y,
       menuWidth: 300,
-      menuHeight: 470,
+      menuHeight: 450,
     }
 
     window.addEventListener("mousemove", handleMenuDragMove, { passive: true })
@@ -1234,7 +1373,7 @@ const JsonEditorPage = () => {
     e.preventDefault()
     e.stopPropagation()
 
-    if (menuDisabled || activeSelectedIndexes.length <= 1) return
+    if (menuDisabled || activeSelectedIndexes.length === 0) return
 
     const targetIndex = clampIndex(bulkMoveIndex, openBoard.images.length)
 
@@ -1259,7 +1398,7 @@ const JsonEditorPage = () => {
   }
 
   const handleBulkApplyTitle = () => {
-    if (menuDisabled || activeSelectedIndexes.length <= 1) return
+    if (menuDisabled || activeSelectedIndexes.length === 0) return
 
     const selectedSet = new Set(activeSelectedIndexes)
 
@@ -1282,7 +1421,7 @@ const JsonEditorPage = () => {
   }
 
   const handleBulkApplyAuthor = () => {
-    if (menuDisabled || activeSelectedIndexes.length <= 1) return
+    if (menuDisabled || activeSelectedIndexes.length === 0) return
 
     const selectedSet = new Set(activeSelectedIndexes)
 
@@ -1307,7 +1446,7 @@ const JsonEditorPage = () => {
   }
 
   const handleBulkMoveToTop = () => {
-    if (menuDisabled || activeSelectedIndexes.length <= 1) return
+    if (menuDisabled || activeSelectedIndexes.length === 0) return
 
     markDirty()
     setData((prev) =>
@@ -1328,7 +1467,7 @@ const JsonEditorPage = () => {
   }
 
   const handleBulkMoveToBottom = () => {
-    if (menuDisabled || activeSelectedIndexes.length <= 1) return
+    if (menuDisabled || activeSelectedIndexes.length === 0) return
 
     markDirty()
     setData((prev) =>
@@ -1349,7 +1488,7 @@ const JsonEditorPage = () => {
   }
 
   const handleBulkDelete = () => {
-    if (menuDisabled || activeSelectedIndexes.length <= 1) return
+    if (menuDisabled || activeSelectedIndexes.length === 0) return
 
     if (!confirm(`Delete ${activeSelectedIndexes.length} selected image(s)?`)) {
       return
@@ -1392,7 +1531,7 @@ const JsonEditorPage = () => {
 
       if (
         (e.key === "Delete" || e.key === "Backspace") &&
-        activeSelectedIndexes.length > 1
+        activeSelectedIndexes.length > 0
       ) {
         e.preventDefault()
         handleBulkDelete()
@@ -1486,7 +1625,6 @@ const JsonEditorPage = () => {
         {!supportsFsAccess ? " | browser does not support same-file save" : ""}
       </div>
 
-      {/* GRID */}
       <div className="flex-column">
         {data.map((item, index) => (
           <BoardItem
@@ -1541,11 +1679,8 @@ const JsonEditorPage = () => {
         }}
       >
         <div
+          className="flex-column"
           style={{
-            display: "grid",
-            gridTemplateColumns: "1fr auto",
-            gap: 10,
-            alignItems: "center",
             cursor: "grab",
             userSelect: "none",
           }}
@@ -1553,32 +1688,27 @@ const JsonEditorPage = () => {
           title="Drag menu"
         >
           <MdDragIndicator size={20} />
-          <div />
-        </div>
-
-        <div style={{ height: 5 }} />
-
-        <div
-          className="flex-row"
-          style={{
-            flexWrap: "nowrap",
-            alignItems: "center",
-          }}
-        >
-          <img
-            src={previewImage}
-            alt=""
+          <div
             style={{
-              width: 60,
-              height: 40,
-              objectFit: "cover",
+              display: "flex",
+              gap: 10,
             }}
-          />
-          <p>
-            {openBoard
-              ? `${openBoard.title || "Untitled"} ${activeSelectedIndexes.length}/${openBoard.images.length} | ${openBoardDuplicateCount} duplicates`
-              : "No open board"}
-          </p>
+          >
+            <img
+              src={previewImage}
+              alt=""
+              style={{
+                width: 60,
+                height: 60,
+                objectFit: "cover",
+              }}
+            />
+            <p>
+              {openBoard
+                ? `${openBoard.title || "Untitled"} ${activeSelectedIndexes.length}/${openBoard.images.length} | ${openBoardDuplicateCount} duplicates`
+                : "No open board"}
+            </p>
+          </div>
         </div>
 
         <div className="flex-row">
@@ -1612,7 +1742,7 @@ const JsonEditorPage = () => {
               opacity: menuDisabled ? 0.4 : 1,
             }}
           />
-          <AiOutlineDelete
+          <TbPhotoMinus
             onClick={handleOpenBoardAutoDeleteDuplicates}
             className="icon-button"
             title="Delete Duplicates"
@@ -1622,7 +1752,7 @@ const JsonEditorPage = () => {
                 menuDisabled || openBoardDuplicateCount === 0
                   ? "default"
                   : "pointer",
-              opacity: menuDisabled || openBoardDuplicateCount === 0 ? 0.4 : 1,
+              opacity: menuDisabled || openBoardDuplicateCount === 0 ? 0.5 : 1,
             }}
           />
         </div>
@@ -1726,8 +1856,12 @@ const JsonEditorPage = () => {
               right: 10,
               top: "50%",
               transform: "translateY(-50%)",
-              cursor: menuDisabled ? "default" : "pointer",
-              opacity: menuDisabled ? 0.4 : 1,
+              cursor:
+                menuDisabled || activeSelectedIndexes.length === 0
+                  ? "default"
+                  : "pointer",
+              opacity:
+                menuDisabled || activeSelectedIndexes.length === 0 ? 0.4 : 1,
             }}
           />
         </div>
@@ -1753,8 +1887,12 @@ const JsonEditorPage = () => {
               right: 10,
               top: "50%",
               transform: "translateY(-50%)",
-              cursor: menuDisabled ? "default" : "pointer",
-              opacity: menuDisabled ? 0.4 : 1,
+              cursor:
+                menuDisabled || activeSelectedIndexes.length === 0
+                  ? "default"
+                  : "pointer",
+              opacity:
+                menuDisabled || activeSelectedIndexes.length === 0 ? 0.4 : 1,
             }}
           />
         </div>
@@ -1773,14 +1911,11 @@ const JsonEditorPage = () => {
           <button
             onClick={handleBulkMoveSubmit}
             title="Move Selected"
-            disabled={menuDisabled}
+            disabled={menuDisabled || activeSelectedIndexes.length === 0}
           >
             Move
           </button>
         </div>
-
-        <div style={{ height: 5 }} />
-
         <div className="flex-row">
           <MdCheck
             className="icon-button"
@@ -1792,14 +1927,38 @@ const JsonEditorPage = () => {
               opacity: menuDisabled ? 0.4 : 1,
             }}
           />
-          <IoMdClose
+          <GoCircleSlash
             className="icon-button"
             size={ICON_SIZE}
             onClick={clearOpenBoardSelection}
-            title="Deselect Board"
+            title="Deselect All"
             style={{
-              cursor: menuDisabled ? "default" : "pointer",
-              opacity: menuDisabled ? 0.4 : 1,
+              cursor:
+                menuDisabled || activeSelectedIndexes.length === 0
+                  ? "default"
+                  : "pointer",
+              opacity:
+                menuDisabled || activeSelectedIndexes.length === 0 ? 0.5 : 1,
+            }}
+          />
+          <MdAutoAwesome
+            className="icon-button"
+            size={ICON_SIZE}
+            onClick={handleAnalyzeSelectedTitles}
+            title="Analyze Selected"
+            style={{
+              cursor:
+                menuDisabled ||
+                activeSelectedIndexes.length === 0 ||
+                isAnalyzingTitles
+                  ? "default"
+                  : "pointer",
+              opacity:
+                menuDisabled ||
+                activeSelectedIndexes.length === 0 ||
+                isAnalyzingTitles
+                  ? 0.4
+                  : 1,
             }}
           />
           <IoMdArrowRoundUp
@@ -1808,8 +1967,12 @@ const JsonEditorPage = () => {
             onClick={handleBulkMoveToTop}
             title="Move Selected To Top"
             style={{
-              cursor: menuDisabled ? "default" : "pointer",
-              opacity: menuDisabled ? 0.4 : 1,
+              cursor:
+                menuDisabled || activeSelectedIndexes.length === 0
+                  ? "default"
+                  : "pointer",
+              opacity:
+                menuDisabled || activeSelectedIndexes.length === 0 ? 0.4 : 1,
             }}
           />
           <IoMdArrowRoundDown
@@ -1818,8 +1981,12 @@ const JsonEditorPage = () => {
             onClick={handleBulkMoveToBottom}
             title="Move Selected To Bottom"
             style={{
-              cursor: menuDisabled ? "default" : "pointer",
-              opacity: menuDisabled ? 0.4 : 1,
+              cursor:
+                menuDisabled || activeSelectedIndexes.length === 0
+                  ? "default"
+                  : "pointer",
+              opacity:
+                menuDisabled || activeSelectedIndexes.length === 0 ? 0.4 : 1,
             }}
           />
           <AiOutlineDelete
@@ -1828,8 +1995,12 @@ const JsonEditorPage = () => {
             onClick={handleBulkDelete}
             title="Delete Selected"
             style={{
-              cursor: menuDisabled ? "default" : "pointer",
-              opacity: menuDisabled ? 0.4 : 1,
+              cursor:
+                menuDisabled || activeSelectedIndexes.length === 0
+                  ? "default"
+                  : "pointer",
+              opacity:
+                menuDisabled || activeSelectedIndexes.length === 0 ? 0.4 : 1,
             }}
           />
         </div>
@@ -1878,8 +2049,7 @@ const JsonEditorPage = () => {
                 }}
               >
                 <div style={{ fontSize: 14 }}>
-                  {(board.title || "Untitled") +
-                    ` | ${fullscreenViewer.imageIndex + 1}/${board.images.length}`}
+                  {`${fullscreenViewer.imageIndex + 1} / ${board.images.length} | ${activeImage.imageAuthor}`}
                 </div>
 
                 <div
