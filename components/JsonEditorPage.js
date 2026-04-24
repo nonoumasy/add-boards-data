@@ -25,7 +25,6 @@ import {
   IoMdArrowRoundDown,
   IoMdArrowRoundUp,
   IoMdArrowUp,
-  IoMdClose,
 } from "react-icons/io"
 import { AiOutlineDelete } from "react-icons/ai"
 import {
@@ -35,9 +34,15 @@ import {
 } from "react-icons/tb"
 import { FooterComp } from "@/components/FooterComp"
 import { HiPlusSm } from "react-icons/hi"
-import { GoCircleSlash } from "react-icons/go"
+import { GoCircleSlash, GoImage } from "react-icons/go"
+import { PiTextAa } from "react-icons/pi"
+import { FaCircleUser } from "react-icons/fa6"
 
 const ICON_SIZE = 24
+const MENU_WIDTH = 300
+const MENU_FALLBACK_HEIGHT = 450
+const MENU_EDGE_GAP = 8
+
 const defaultImage =
   "https://i.pinimg.com/1200x/27/ff/37/27ff3733ece0a0d09d76d1288f2dbef4.jpg"
 
@@ -226,6 +231,50 @@ const clampIndex = (value, max) => {
   return num
 }
 
+const clampNumber = (value, min, max) => {
+  const num = Number(value)
+  if (!Number.isFinite(num)) return min
+  if (num < min) return min
+  if (num > max) return max
+  return num
+}
+
+const getMaxFloatingPercent = (
+  menuWidth = MENU_WIDTH,
+  menuHeight = MENU_FALLBACK_HEIGHT,
+) => {
+  if (typeof window === "undefined") {
+    return {
+      maxXPercent: 95,
+      maxYPercent: 95,
+    }
+  }
+
+  const maxX = Math.max(window.innerWidth - menuWidth - MENU_EDGE_GAP, 0)
+  const maxY = Math.max(window.innerHeight - menuHeight - MENU_EDGE_GAP, 0)
+
+  return {
+    maxXPercent: (maxX / window.innerWidth) * 100,
+    maxYPercent: (maxY / window.innerHeight) * 100,
+  }
+}
+
+const clampFloatingPosition = (
+  position,
+  menuWidth = MENU_WIDTH,
+  menuHeight = MENU_FALLBACK_HEIGHT,
+) => {
+  const { maxXPercent, maxYPercent } = getMaxFloatingPercent(
+    menuWidth,
+    menuHeight,
+  )
+
+  return {
+    xPercent: clampNumber(position?.xPercent, 0, maxXPercent),
+    yPercent: clampNumber(position?.yPercent, 0, maxYPercent),
+  }
+}
+
 const moveImageInArray = (images, fromIndex, toIndex) => {
   if (
     fromIndex < 0 ||
@@ -259,35 +308,45 @@ const moveSelectedImagesToIndex = (images, selectedIndexes, targetIndex) => {
 
 const getInitialFloatingMenuPosition = () => {
   if (typeof window === "undefined") {
-    return { x: 20, y: 20 }
+    return { xPercent: 5, yPercent: 5 }
   }
 
   try {
     const saved = localStorage.getItem(FLOATING_MENU_POSITION_KEY)
     if (!saved) {
-      return {
-        x: Math.max(window.innerWidth - 440, 20),
-        y: Math.max(window.innerHeight - 700, 20),
-      }
+      return clampFloatingPosition({ xPercent: 5, yPercent: 5 })
     }
 
     const parsed = JSON.parse(saved)
-    const x = Number(parsed?.x)
-    const y = Number(parsed?.y)
 
-    return {
-      x: Number.isFinite(x) ? x : Math.max(window.innerWidth - 440, 20),
-      y: Number.isFinite(y) ? y : Math.max(window.innerHeight - 700, 20),
+    if (
+      Number.isFinite(Number(parsed?.xPercent)) ||
+      Number.isFinite(Number(parsed?.yPercent))
+    ) {
+      return clampFloatingPosition({
+        xPercent: Number(parsed?.xPercent),
+        yPercent: Number(parsed?.yPercent),
+      })
     }
+
+    if (
+      Number.isFinite(Number(parsed?.x)) ||
+      Number.isFinite(Number(parsed?.y))
+    ) {
+      return clampFloatingPosition({
+        xPercent: (Number(parsed?.x || 0) / window.innerWidth) * 100,
+        yPercent: (Number(parsed?.y || 0) / window.innerHeight) * 100,
+      })
+    }
+
+    return clampFloatingPosition({ xPercent: 5, yPercent: 5 })
   } catch {
-    return {
-      x: Math.max(window.innerWidth - 440, 20),
-      y: Math.max(window.innerHeight - 700, 20),
-    }
+    return clampFloatingPosition({ xPercent: 5, yPercent: 5 })
   }
 }
 
-const getFloatingTransform = (x, y) => `translate3d(${x}px, ${y}px, 0)`
+const getFloatingTransform = (xPercent, yPercent) =>
+  `translate3d(${xPercent}vw, ${yPercent}vh, 0)`
 
 const closeAllBoards = (items) =>
   items.map((item) => ({
@@ -349,6 +408,7 @@ const JsonEditorPage = () => {
   const [bulkMoveBoardId, setBulkMoveBoardId] = useState("")
   const [bulkTitle, setBulkTitle] = useState("")
   const [bulkAuthor, setBulkAuthor] = useState("")
+  const [scrollBoardIndex, setScrollBoardIndex] = useState("")
 
   const [floatingMenuPosition, setFloatingMenuPosition] = useState(() =>
     getInitialFloatingMenuPosition(),
@@ -362,9 +422,13 @@ const JsonEditorPage = () => {
   const dragRafRef = useRef(null)
   const menuRef = useRef(null)
   const openBoardRef = useRef(null)
+  const boardRefs = useRef({})
+  const imageRefs = useRef({})
 
   const supportsFsAccess =
-    "showOpenFilePicker" in window && "showSaveFilePicker" in window
+    typeof window !== "undefined" &&
+    "showOpenFilePicker" in window &&
+    "showSaveFilePicker" in window
 
   const markDirty = () => setDirty(true)
 
@@ -412,10 +476,10 @@ const JsonEditorPage = () => {
 
   const menuDisabled = !openBoard
 
-  const applyFloatingPositionToNode = (x, y) => {
+  const applyFloatingPositionToNode = (xPercent, yPercent) => {
     const node = menuRef.current
     if (!node) return
-    node.style.transform = getFloatingTransform(x, y)
+    node.style.transform = getFloatingTransform(xPercent, yPercent)
   }
 
   const scrollToOpenBoardBottom = () => {
@@ -434,6 +498,32 @@ const JsonEditorPage = () => {
           behavior: "smooth",
         })
       })
+    })
+  }
+
+  const scrollToBoardItem = () => {
+    if (!openBoard) return
+
+    const rawValue = String(scrollBoardIndex || "").trim()
+    if (!rawValue) return
+
+    const parsedIndex = Number(rawValue)
+    if (!Number.isFinite(parsedIndex)) return
+
+    const targetIndex = clampIndex(
+      Math.trunc(parsedIndex) - 1,
+      openBoard.images.length - 1,
+    )
+
+    const targetKey = `${openBoard.id}-${targetIndex}`
+    const targetNode = imageRefs.current[targetKey]
+
+    if (!targetNode) return
+
+    targetNode.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+      inline: "nearest",
     })
   }
 
@@ -734,17 +824,20 @@ const JsonEditorPage = () => {
     const nextY = e.clientY - dragStateRef.current.offsetY
 
     const maxX = Math.max(
-      window.innerWidth - dragStateRef.current.menuWidth - 8,
+      window.innerWidth - dragStateRef.current.menuWidth - MENU_EDGE_GAP,
       0,
     )
     const maxY = Math.max(
-      window.innerHeight - dragStateRef.current.menuHeight - 8,
+      window.innerHeight - dragStateRef.current.menuHeight - MENU_EDGE_GAP,
       0,
     )
 
+    const clampedX = clampIndex(nextX, maxX)
+    const clampedY = clampIndex(nextY, maxY)
+
     dragPositionRef.current = {
-      x: clampIndex(nextX, maxX),
-      y: clampIndex(nextY, maxY),
+      xPercent: (clampedX / window.innerWidth) * 100,
+      yPercent: (clampedY / window.innerHeight) * 100,
     }
 
     if (dragRafRef.current) return
@@ -752,8 +845,8 @@ const JsonEditorPage = () => {
     dragRafRef.current = window.requestAnimationFrame(() => {
       dragRafRef.current = null
       applyFloatingPositionToNode(
-        dragPositionRef.current.x,
-        dragPositionRef.current.y,
+        dragPositionRef.current.xPercent,
+        dragPositionRef.current.yPercent,
       )
     })
   }
@@ -771,19 +864,21 @@ const JsonEditorPage = () => {
     }
 
     setFloatingMenuPosition({
-      x: dragPositionRef.current.x,
-      y: dragPositionRef.current.y,
+      xPercent: dragPositionRef.current.xPercent,
+      yPercent: dragPositionRef.current.yPercent,
     })
   }
 
   const handleMenuDragStart = (e) => {
     if (e.button !== 0) return
 
+    const rect = menuRef.current?.getBoundingClientRect()
+
     dragStateRef.current = {
-      offsetX: e.clientX - dragPositionRef.current.x,
-      offsetY: e.clientY - dragPositionRef.current.y,
-      menuWidth: 300,
-      menuHeight: 450,
+      offsetX: rect ? e.clientX - rect.left : 0,
+      offsetY: rect ? e.clientY - rect.top : 0,
+      menuWidth: rect?.width || MENU_WIDTH,
+      menuHeight: rect?.height || MENU_FALLBACK_HEIGHT,
     }
 
     window.addEventListener("mousemove", handleMenuDragMove, { passive: true })
@@ -835,23 +930,48 @@ const JsonEditorPage = () => {
   }, [data])
 
   useEffect(() => {
-    dragPositionRef.current = floatingMenuPosition
+    const clamped = clampFloatingPosition(
+      floatingMenuPosition,
+      menuRef.current?.getBoundingClientRect()?.width || MENU_WIDTH,
+      menuRef.current?.getBoundingClientRect()?.height || MENU_FALLBACK_HEIGHT,
+    )
+
+    dragPositionRef.current = clamped
 
     try {
-      localStorage.setItem(
-        FLOATING_MENU_POSITION_KEY,
-        JSON.stringify(floatingMenuPosition),
-      )
+      localStorage.setItem(FLOATING_MENU_POSITION_KEY, JSON.stringify(clamped))
     } catch (err) {
       console.error(err)
     }
   }, [floatingMenuPosition])
 
   useEffect(() => {
-    applyFloatingPositionToNode(
-      dragPositionRef.current.x,
-      dragPositionRef.current.y,
+    const clamped = clampFloatingPosition(
+      dragPositionRef.current,
+      menuRef.current?.getBoundingClientRect()?.width || MENU_WIDTH,
+      menuRef.current?.getBoundingClientRect()?.height || MENU_FALLBACK_HEIGHT,
     )
+
+    dragPositionRef.current = clamped
+    applyFloatingPositionToNode(clamped.xPercent, clamped.yPercent)
+  }, [])
+
+  useEffect(() => {
+    const handleResize = () => {
+      const rect = menuRef.current?.getBoundingClientRect()
+      const clamped = clampFloatingPosition(
+        dragPositionRef.current,
+        rect?.width || MENU_WIDTH,
+        rect?.height || MENU_FALLBACK_HEIGHT,
+      )
+
+      dragPositionRef.current = clamped
+      setFloatingMenuPosition(clamped)
+      applyFloatingPositionToNode(clamped.xPercent, clamped.yPercent)
+    }
+
+    window.addEventListener("resize", handleResize)
+    return () => window.removeEventListener("resize", handleResize)
   }, [])
 
   useEffect(() => {
@@ -947,6 +1067,8 @@ const JsonEditorPage = () => {
       setBulkMoveBoardId("")
       setBulkTitle("")
       setBulkAuthor("")
+      setScrollBoardIndex("")
+      imageRefs.current = {}
     } catch (err) {
       console.error(err)
     }
@@ -1075,6 +1197,14 @@ const JsonEditorPage = () => {
       const next = { ...prev }
       delete next[id]
       return next
+    })
+
+    delete boardRefs.current[id]
+
+    Object.keys(imageRefs.current).forEach((key) => {
+      if (key.startsWith(`${id}-`)) {
+        delete imageRefs.current[key]
+      }
     })
 
     if (fullscreenViewer?.boardId === id) {
@@ -1631,6 +1761,7 @@ const JsonEditorPage = () => {
             key={item.id}
             item={item}
             index={index}
+            imageRefs={imageRefs}
             toggleItem={handleOpenBoard}
             updateItem={updateItem}
             deleteItem={deleteItem}
@@ -1651,12 +1782,21 @@ const JsonEditorPage = () => {
             onOpenFullscreen={(imageIndex) =>
               item.id === openBoardId && openFullscreenViewer(imageIndex)
             }
-            boardRef={item.id === openBoardId ? openBoardRef : null}
+            boardRef={(node) => {
+              if (node) {
+                boardRefs.current[item.id] = node
+              } else {
+                delete boardRefs.current[item.id]
+              }
+
+              if (item.id === openBoardId) {
+                openBoardRef.current = node
+              }
+            }}
           />
         ))}
       </div>
 
-      {/* MENU */}
       <div
         ref={menuRef}
         className="flex-column"
@@ -1665,10 +1805,11 @@ const JsonEditorPage = () => {
           left: 0,
           top: 0,
           transform: getFloatingTransform(
-            floatingMenuPosition.x,
-            floatingMenuPosition.y,
+            floatingMenuPosition.xPercent,
+            floatingMenuPosition.yPercent,
           ),
-          width: 300,
+          width: MENU_WIDTH,
+          maxWidth: "calc(100vw - 16px)",
           borderRadius: 10,
           backgroundColor: "Canvas",
           padding: 20,
@@ -1680,14 +1821,57 @@ const JsonEditorPage = () => {
       >
         <div
           className="flex-column"
-          style={{
-            cursor: "grab",
-            userSelect: "none",
-          }}
           onMouseDown={handleMenuDragStart}
-          title="Drag menu"
+          style={{ cursor: "grab", gap: 20 }}
         >
-          <MdDragIndicator size={20} />
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+              userSelect: "none",
+            }}
+          >
+            <MdDragIndicator
+              size={20}
+              title="Drag menu"
+              style={{
+                flex: "0 0 auto",
+              }}
+            />
+
+            <input
+              min="1"
+              max={openBoard?.images.length || 1}
+              value={scrollBoardIndex}
+              onChange={(e) => setScrollBoardIndex(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return
+                e.preventDefault()
+                scrollToBoardItem()
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              style={{
+                textAlign: "right",
+                width: 50,
+                height: 30,
+              }}
+            />
+
+            <MdClose
+              onClick={closeOpenBoard}
+              className="icon-button"
+              title="Close Open Board"
+              size={ICON_SIZE}
+              style={{
+                cursor: menuDisabled ? "default" : "pointer",
+                opacity: menuDisabled ? 0.4 : 1,
+                flex: "0 0 auto",
+              }}
+            />
+          </div>
+
           <div
             style={{
               display: "flex",
@@ -1732,16 +1916,6 @@ const JsonEditorPage = () => {
               opacity: menuDisabled ? 0.4 : 1,
             }}
           />
-          <MdClose
-            onClick={closeOpenBoard}
-            className="icon-button"
-            title="Close Open Board"
-            size={ICON_SIZE}
-            style={{
-              cursor: menuDisabled ? "default" : "pointer",
-              opacity: menuDisabled ? 0.4 : 1,
-            }}
-          />
           <TbPhotoMinus
             onClick={handleOpenBoardAutoDeleteDuplicates}
             className="icon-button"
@@ -1769,7 +1943,14 @@ const JsonEditorPage = () => {
             disabled={menuDisabled}
             value={bulkMoveBoardId}
             onChange={(e) => setBulkMoveBoardId(e.target.value)}
-            style={{ width: "100%", paddingRight: 70 }}
+            style={{
+              width: "100%",
+              paddingRight: 70,
+              appearance: "none",
+              WebkitAppearance: "none",
+              MozAppearance: "none",
+              backgroundImage: "none",
+            }}
           >
             <option value="">move/copy selected to board</option>
             {targetBoardOptions.map((item) => (
@@ -1916,6 +2097,7 @@ const JsonEditorPage = () => {
             Move
           </button>
         </div>
+
         <div className="flex-row">
           <MdCheck
             className="icon-button"
@@ -2260,6 +2442,7 @@ const JsonEditorPage = () => {
             </div>
           )
         })()}
+
       <div style={{ height: 10 }} />
       <FooterComp />
     </main>
@@ -2269,6 +2452,7 @@ const JsonEditorPage = () => {
 const BoardItem = ({
   item,
   index,
+  imageRefs,
   toggleItem,
   updateItem,
   deleteItem,
@@ -2389,13 +2573,43 @@ const BoardItem = ({
             flex: 1,
           }}
         >
-          <span>
-            {index + 1}. {item.title || "Untitled"} ({item.eventStartYear}) |{" "}
-            {item.images.length} images | {missingTitleCount} missing titles |{" "}
-            {missingAuthorCount} missing authors
-            {selectedIndexes.length > 0
-              ? ` | ${selectedIndexes.length} selected`
-              : ""}
+          <span
+            style={{
+              display: "flex",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 10,
+            }}
+          >
+            <span>
+              {index + 1}. {item.title || "Untitled"} ({item.eventStartYear}) |
+            </span>
+
+            <span className="flex-row" style={{ gap: 5 }}>
+              {item.images.length}
+              <GoImage />
+            </span>
+
+            <span>|</span>
+
+            <span className="flex-row" style={{ gap: 5 }}>
+              {missingTitleCount}
+              <PiTextAa />
+            </span>
+
+            <span>|</span>
+
+            <span className="flex-row" style={{ gap: 5 }}>
+              {missingAuthorCount}
+              <FaCircleUser />
+            </span>
+
+            {selectedIndexes.length > 0 && (
+              <>
+                <span>|</span>
+                <span>{selectedIndexes.length} selected</span>
+              </>
+            )}
           </span>
         </div>
 
@@ -2439,28 +2653,41 @@ const BoardItem = ({
                   gap: 10,
                 }}
               >
-                {item.images.map((img, idx) => (
-                  <SortableImage
-                    key={idx}
-                    id={idx.toString()}
-                    img={img}
-                    index={idx}
-                    itemId={item.id}
-                    authorListId={authorListId}
-                    updateImage={updateItemImage(setData, markDirty)}
-                    deleteImage={deleteImage}
-                    moveImageToTop={moveImageToTop}
-                    moveImageToBottom={moveImageToBottom}
-                    moveImageToIndex={moveImageToIndex}
-                    isDuplicate={duplicateImageKeys.has(
-                      normalizeImageUrl(img.image),
-                    )}
-                    isSelected={selectedIndexes.includes(idx)}
-                    onSelectImage={onSelectImage}
-                    onOpenFullscreen={onOpenFullscreen}
-                    maxIndex={item.images.length - 1}
-                  />
-                ))}
+                {item.images.map((img, idx) => {
+                  const imageRef = (node) => {
+                    const key = `${item.id}-${idx}`
+
+                    if (node) {
+                      imageRefs.current[key] = node
+                    } else {
+                      delete imageRefs.current[key]
+                    }
+                  }
+
+                  return (
+                    <SortableImage
+                      key={idx}
+                      id={idx.toString()}
+                      img={img}
+                      index={idx}
+                      imageRef={imageRef}
+                      itemId={item.id}
+                      authorListId={authorListId}
+                      updateImage={updateItemImage(setData, markDirty)}
+                      deleteImage={deleteImage}
+                      moveImageToTop={moveImageToTop}
+                      moveImageToBottom={moveImageToBottom}
+                      moveImageToIndex={moveImageToIndex}
+                      isDuplicate={duplicateImageKeys.has(
+                        normalizeImageUrl(img.image),
+                      )}
+                      isSelected={selectedIndexes.includes(idx)}
+                      onSelectImage={onSelectImage}
+                      onOpenFullscreen={onOpenFullscreen}
+                      maxIndex={item.images.length - 1}
+                    />
+                  )
+                })}
               </div>
 
               <datalist id={authorListId}>
@@ -2496,6 +2723,7 @@ const SortableImage = ({
   id,
   img,
   index,
+  imageRef,
   itemId,
   authorListId,
   updateImage,
@@ -2588,7 +2816,10 @@ const SortableImage = ({
 
   return (
     <div
-      ref={setNodeRef}
+      ref={(node) => {
+        setNodeRef(node)
+        imageRef(node)
+      }}
       style={style}
       className="flex-column"
       onClick={handleCardClick}
