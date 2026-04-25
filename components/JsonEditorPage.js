@@ -18,6 +18,7 @@ import {
   MdContentCopy,
   MdOutlineDragIndicator,
   MdAutoAwesome,
+  MdRemove,
 } from "react-icons/md"
 import {
   IoLogoGoogle,
@@ -418,6 +419,7 @@ const JsonEditorPage = () => {
 
   const [fullscreenViewer, setFullscreenViewer] = useState(null)
   const [isAnalyzingTitles, setIsAnalyzingTitles] = useState(false)
+  const [isMenuMinimized, setIsMenuMinimized] = useState(false)
 
   const dragStateRef = useRef(null)
   const dragPositionRef = useRef(getInitialFloatingMenuPosition())
@@ -1827,14 +1829,14 @@ const JsonEditorPage = () => {
           padding: 20,
           zIndex: 9999,
           boxShadow: "0 1px 2px rgba(0,0,0,0.5), 0 5px 10px rgba(0,0,0,0.25)",
-          gap: 10,
+          gap: isMenuMinimized ? 0 : 10,
           willChange: "transform",
         }}
       >
         <div
           className="flex-column"
           onMouseDown={handleMenuDragStart}
-          style={{ cursor: "grab", gap: 20 }}
+          style={{ cursor: "grab", gap: isMenuMinimized ? 0 : 20 }}
         >
           <div
             style={{
@@ -1871,372 +1873,418 @@ const JsonEditorPage = () => {
               }}
             />
 
-            <MdClose
-              onClick={closeOpenBoard}
-              className="icon-button"
-              title="Close Open Board"
-              size={ICON_SIZE}
+            <div
+              className="flex-row"
               style={{
-                cursor: menuDisabled ? "default" : "pointer",
-                opacity: menuDisabled ? 0.5 : 1,
+                gap: 5,
                 flex: "0 0 auto",
               }}
-            />
+            >
+              <MdClose
+                onClick={(e) => {
+                  e.stopPropagation()
+                  closeOpenBoard()
+                }}
+                className="icon-button"
+                title="Close Open Board"
+                size={ICON_SIZE}
+                style={{
+                  cursor: menuDisabled ? "default" : "pointer",
+                  opacity: menuDisabled ? 0.5 : 1,
+                  flex: "0 0 auto",
+                }}
+              />
+
+              <MdRemove
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setIsMenuMinimized((prev) => !prev)
+                }}
+                className="icon-button"
+                title={isMenuMinimized ? "Expand Menu" : "Minimize Menu"}
+                size={ICON_SIZE}
+                style={{
+                  cursor: "pointer",
+                  flex: "0 0 auto",
+                }}
+              />
+            </div>
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              gap: 10,
-            }}
-          >
-            {/* <img
-              src={previewImage}
-              alt=""
+          {!isMenuMinimized && (
+            <div
               style={{
-                width: 60,
-                height: 60,
-                objectFit: "cover",
+                display: "flex",
+                gap: 10,
               }}
-            /> */}
+            >
+              <p>
+                {openBoard ? (
+                  <span
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: 8,
+                    }}
+                  >
+                    <span>{openBoard.title || "Untitled"}</span>
 
-            <p>
-              {openBoard ? (
-                <span
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                    gap: 8,
-                  }}
-                >
-                  <span>{openBoard.title || "Untitled"}</span>
+                    <span>
+                      {activeSelectedIndexes.length}/{openBoard.images.length}
+                    </span>
 
-                  <span>
-                    {activeSelectedIndexes.length}/{openBoard.images.length}
+                    <span>|</span>
+
+                    <span className="flex-row" style={{ gap: 5 }}>
+                      {openBoardMissingTitleCount}
+                      <PiTextAa />
+                    </span>
+
+                    <span>|</span>
+
+                    <span className="flex-row" style={{ gap: 5 }}>
+                      {openBoardMissingAuthorCount}
+                      <FaCircleUser />
+                    </span>
+
+                    <span>|</span>
+
+                    <span className="flex-row" style={{ gap: 5 }}>
+                      {openBoardDuplicateCount}
+                      <IoImagesOutline />
+                    </span>
                   </span>
-
-                  <span>|</span>
-
-                  <span className="flex-row" style={{ gap: 5 }}>
-                    {openBoardMissingTitleCount}
-                    <PiTextAa />
-                  </span>
-
-                  <span>|</span>
-
-                  <span className="flex-row" style={{ gap: 5 }}>
-                    {openBoardMissingAuthorCount}
-                    <FaCircleUser />
-                  </span>
-
-                  <span>|</span>
-
-                  <span className="flex-row" style={{ gap: 5 }}>
-                    {openBoardDuplicateCount}
-                    <IoImagesOutline />
-                  </span>
-                </span>
-              ) : (
-                "No open board"
-              )}
-            </p>
-          </div>
-        </div>
-        {/* <DividerComp /> */}
-        <div className="flex-row">
-          <HiPlusSm
-            onClick={addImage}
-            className="icon-button"
-            title="Add Item"
-            size={ICON_SIZE}
-            style={{
-              cursor: menuDisabled ? "default" : "pointer",
-              opacity: menuDisabled ? 0.5 : 1,
-            }}
-          />
-          <TbNumber10Small
-            onClick={add10Images}
-            className="icon-button"
-            title="Add 10 Items"
-            size={ICON_SIZE}
-            style={{
-              cursor: menuDisabled ? "default" : "pointer",
-              opacity: menuDisabled ? 0.5 : 1,
-            }}
-          />
-          <TbPhotoMinus
-            onClick={handleOpenBoardAutoDeleteDuplicates}
-            className="icon-button"
-            title="Delete Duplicates"
-            size={ICON_SIZE}
-            style={{
-              cursor:
-                menuDisabled || openBoardDuplicateCount === 0
-                  ? "default"
-                  : "pointer",
-              opacity: menuDisabled || openBoardDuplicateCount === 0 ? 0.5 : 1,
-            }}
-          />
+                ) : (
+                  "No open board"
+                )}
+              </p>
+            </div>
+          )}
         </div>
 
-        <input
-          type="file"
-          accept=".json"
-          onChange={handleMenuLoadJson}
-          disabled={menuDisabled}
-        />
+        {!isMenuMinimized && (
+          <>
+            {/* <DividerComp /> */}
 
-        <div style={{ position: "relative" }}>
-          <select
-            disabled={menuDisabled}
-            value={bulkMoveBoardId}
-            onChange={(e) => setBulkMoveBoardId(e.target.value)}
-            style={{
-              width: "100%",
-              paddingRight: 70,
-              appearance: "none",
-              WebkitAppearance: "none",
-              MozAppearance: "none",
-              backgroundImage: "none",
-            }}
-          >
-            <option value="">move/copy selected to board</option>
-            {targetBoardOptions.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.title || "Untitled"}
-              </option>
-            ))}
-          </select>
+            <div className="flex-row">
+              <HiPlusSm
+                onClick={addImage}
+                className="icon-button"
+                title="Add Item"
+                size={ICON_SIZE}
+                style={{
+                  cursor: menuDisabled ? "default" : "pointer",
+                  opacity: menuDisabled ? 0.5 : 1,
+                }}
+              />
 
-          <MdContentCopy
-            className="icon-button"
-            title="Copy Selected To Board"
-            size={18}
-            onClick={handleCopySelectedToBoard}
-            style={{
-              width: 20,
-              height: 20,
-              padding: 2,
-              position: "absolute",
-              right: 34,
-              top: "50%",
-              transform: "translateY(-50%)",
-              cursor:
-                menuDisabled ||
-                !bulkMoveBoardId ||
-                activeSelectedIndexes.length === 0
-                  ? "default"
-                  : "pointer",
-              opacity:
-                menuDisabled ||
-                !bulkMoveBoardId ||
-                activeSelectedIndexes.length === 0
-                  ? 0.5
-                  : 1,
-            }}
-          />
+              <TbNumber10Small
+                onClick={add10Images}
+                className="icon-button"
+                title="Add 10 Items"
+                size={ICON_SIZE}
+                style={{
+                  cursor: menuDisabled ? "default" : "pointer",
+                  opacity: menuDisabled ? 0.5 : 1,
+                }}
+              />
 
-          <IoMdArrowUp
-            className="icon-button"
-            title="Move Selected To Board"
-            size={ICON_SIZE}
-            onClick={handleMoveSelectedToBoard}
-            style={{
-              width: 20,
-              height: 20,
-              padding: 3,
-              position: "absolute",
-              right: 10,
-              top: "50%",
-              transform: "translateY(-50%)",
-              cursor:
-                menuDisabled ||
-                !bulkMoveBoardId ||
-                activeSelectedIndexes.length === 0
-                  ? "default"
-                  : "pointer",
-              opacity:
-                menuDisabled ||
-                !bulkMoveBoardId ||
-                activeSelectedIndexes.length === 0
-                  ? 0.5
-                  : 1,
-            }}
-          />
-        </div>
+              <TbPhotoMinus
+                onClick={handleOpenBoardAutoDeleteDuplicates}
+                className="icon-button"
+                title="Delete Duplicates"
+                size={ICON_SIZE}
+                style={{
+                  cursor:
+                    menuDisabled || openBoardDuplicateCount === 0
+                      ? "default"
+                      : "pointer",
+                  opacity:
+                    menuDisabled || openBoardDuplicateCount === 0 ? 0.5 : 1,
+                }}
+              />
+            </div>
 
-        <div style={{ position: "relative" }}>
-          <input
-            disabled={menuDisabled}
-            placeholder="apply same title to selected"
-            value={bulkTitle}
-            onChange={(e) => setBulkTitle(e.target.value)}
-          />
-          <IoMdArrowUp
-            className="icon-button"
-            title="Apply Title"
-            size={ICON_SIZE}
-            onClick={handleBulkApplyTitle}
-            style={{
-              width: 20,
-              height: 20,
-              padding: 3,
-              position: "absolute",
-              right: 10,
-              top: "50%",
-              transform: "translateY(-50%)",
-              cursor:
-                menuDisabled || activeSelectedIndexes.length === 0
-                  ? "default"
-                  : "pointer",
-              opacity:
-                menuDisabled || activeSelectedIndexes.length === 0 ? 0.5 : 1,
-            }}
-          />
-        </div>
+            <input
+              type="file"
+              accept=".json"
+              onChange={handleMenuLoadJson}
+              disabled={menuDisabled}
+            />
 
-        <div style={{ position: "relative" }}>
-          <input
-            disabled={menuDisabled}
-            list={activeAuthorListId}
-            placeholder="apply same author to selected"
-            value={bulkAuthor}
-            onChange={(e) => setBulkAuthor(e.target.value)}
-          />
-          <IoMdArrowUp
-            className="icon-button"
-            title="Apply Author"
-            size={ICON_SIZE}
-            onClick={handleBulkApplyAuthor}
-            style={{
-              width: 20,
-              height: 20,
-              padding: 3,
-              position: "absolute",
-              right: 10,
-              top: "50%",
-              transform: "translateY(-50%)",
-              cursor:
-                menuDisabled || activeSelectedIndexes.length === 0
-                  ? "default"
-                  : "pointer",
-              opacity:
-                menuDisabled || activeSelectedIndexes.length === 0 ? 0.5 : 1,
-            }}
-          />
-        </div>
+            <div style={{ position: "relative" }}>
+              <select
+                disabled={menuDisabled}
+                value={bulkMoveBoardId}
+                onChange={(e) => setBulkMoveBoardId(e.target.value)}
+                style={{
+                  width: "100%",
+                  paddingRight: 70,
+                  appearance: "none",
+                  WebkitAppearance: "none",
+                  MozAppearance: "none",
+                  backgroundImage: "none",
+                }}
+              >
+                <option value="">move/copy selected to board</option>
+                {targetBoardOptions.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title || "Untitled"}
+                  </option>
+                ))}
+              </select>
 
-        <div style={{ display: "flex", gap: 10 }}>
-          <input
-            disabled={menuDisabled}
-            type="number"
-            min="0"
-            max={openBoard?.images.length || 0}
-            required
-            placeholder="target index"
-            value={bulkMoveIndex}
-            onChange={(e) => setBulkMoveIndex(e.target.value)}
-          />
-          <button onClick={handleBulkMoveSubmit} title="Move Selected">
-            Move
-          </button>
-        </div>
+              <MdContentCopy
+                className="icon-button"
+                title="Copy Selected To Board"
+                size={18}
+                onClick={handleCopySelectedToBoard}
+                style={{
+                  width: 20,
+                  height: 20,
+                  padding: 2,
+                  position: "absolute",
+                  right: 34,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  cursor:
+                    menuDisabled ||
+                    !bulkMoveBoardId ||
+                    activeSelectedIndexes.length === 0
+                      ? "default"
+                      : "pointer",
+                  opacity:
+                    menuDisabled ||
+                    !bulkMoveBoardId ||
+                    activeSelectedIndexes.length === 0
+                      ? 0.5
+                      : 1,
+                }}
+              />
 
-        <div className="flex-row">
-          <MdCheck
-            className="icon-button"
-            size={ICON_SIZE}
-            onClick={selectAllImagesForActiveBoard}
-            title="Select All In Board"
-            style={{
-              cursor: menuDisabled ? "default" : "pointer",
-              opacity: menuDisabled ? 0.5 : 1,
-            }}
-          />
-          <GoCircleSlash
-            className="icon-button"
-            size={ICON_SIZE}
-            onClick={clearOpenBoardSelection}
-            title="Deselect All"
-            style={{
-              cursor:
-                menuDisabled || activeSelectedIndexes.length === 0
-                  ? "default"
-                  : "pointer",
-              opacity:
-                menuDisabled || activeSelectedIndexes.length === 0 ? 0.5 : 1,
-            }}
-          />
-          <MdAutoAwesome
-            className="icon-button"
-            size={ICON_SIZE}
-            onClick={handleAnalyzeSelectedTitles}
-            title="Analyze Selected"
-            style={{
-              cursor:
-                menuDisabled ||
-                activeSelectedIndexes.length === 0 ||
-                isAnalyzingTitles
-                  ? "default"
-                  : "pointer",
-              opacity:
-                menuDisabled ||
-                activeSelectedIndexes.length === 0 ||
-                isAnalyzingTitles
-                  ? 0.5
-                  : 1,
-            }}
-          />
-          <IoMdArrowRoundUp
-            className="icon-button"
-            size={ICON_SIZE}
-            onClick={handleBulkMoveToTop}
-            title="Move Selected To Top"
-            style={{
-              cursor:
-                menuDisabled || activeSelectedIndexes.length === 0
-                  ? "default"
-                  : "pointer",
-              opacity:
-                menuDisabled || activeSelectedIndexes.length === 0 ? 0.5 : 1,
-            }}
-          />
-          <IoMdArrowRoundDown
-            className="icon-button"
-            size={ICON_SIZE}
-            onClick={handleBulkMoveToBottom}
-            title="Move Selected To Bottom"
-            style={{
-              cursor:
-                menuDisabled || activeSelectedIndexes.length === 0
-                  ? "default"
-                  : "pointer",
-              opacity:
-                menuDisabled || activeSelectedIndexes.length === 0 ? 0.5 : 1,
-            }}
-          />
-          <AiOutlineDelete
-            className="icon-button"
-            size={ICON_SIZE}
-            onClick={handleBulkDelete}
-            title="Delete Selected"
-            style={{
-              cursor:
-                menuDisabled || activeSelectedIndexes.length === 0
-                  ? "default"
-                  : "pointer",
-              opacity:
-                menuDisabled || activeSelectedIndexes.length === 0 ? 0.5 : 1,
-            }}
-          />
-        </div>
+              <IoMdArrowUp
+                className="icon-button"
+                title="Move Selected To Board"
+                size={ICON_SIZE}
+                onClick={handleMoveSelectedToBoard}
+                style={{
+                  width: 20,
+                  height: 20,
+                  padding: 3,
+                  position: "absolute",
+                  right: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  cursor:
+                    menuDisabled ||
+                    !bulkMoveBoardId ||
+                    activeSelectedIndexes.length === 0
+                      ? "default"
+                      : "pointer",
+                  opacity:
+                    menuDisabled ||
+                    !bulkMoveBoardId ||
+                    activeSelectedIndexes.length === 0
+                      ? 0.5
+                      : 1,
+                }}
+              />
+            </div>
 
-        <datalist id={activeAuthorListId}>
-          {activeFrequentAuthors.map((author) => (
-            <option key={author} value={author} />
-          ))}
-        </datalist>
+            <div style={{ position: "relative" }}>
+              <input
+                disabled={menuDisabled}
+                placeholder="apply same title to selected"
+                value={bulkTitle}
+                onChange={(e) => setBulkTitle(e.target.value)}
+              />
+
+              <IoMdArrowUp
+                className="icon-button"
+                title="Apply Title"
+                size={ICON_SIZE}
+                onClick={handleBulkApplyTitle}
+                style={{
+                  width: 20,
+                  height: 20,
+                  padding: 3,
+                  position: "absolute",
+                  right: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  cursor:
+                    menuDisabled || activeSelectedIndexes.length === 0
+                      ? "default"
+                      : "pointer",
+                  opacity:
+                    menuDisabled || activeSelectedIndexes.length === 0
+                      ? 0.5
+                      : 1,
+                }}
+              />
+            </div>
+
+            <div style={{ position: "relative" }}>
+              <input
+                disabled={menuDisabled}
+                list={activeAuthorListId}
+                placeholder="apply same author to selected"
+                value={bulkAuthor}
+                onChange={(e) => setBulkAuthor(e.target.value)}
+              />
+
+              <IoMdArrowUp
+                className="icon-button"
+                title="Apply Author"
+                size={ICON_SIZE}
+                onClick={handleBulkApplyAuthor}
+                style={{
+                  width: 20,
+                  height: 20,
+                  padding: 3,
+                  position: "absolute",
+                  right: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  cursor:
+                    menuDisabled || activeSelectedIndexes.length === 0
+                      ? "default"
+                      : "pointer",
+                  opacity:
+                    menuDisabled || activeSelectedIndexes.length === 0
+                      ? 0.5
+                      : 1,
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <input
+                disabled={menuDisabled}
+                type="number"
+                min="0"
+                max={openBoard?.images.length || 0}
+                required
+                placeholder="target index"
+                value={bulkMoveIndex}
+                onChange={(e) => setBulkMoveIndex(e.target.value)}
+              />
+
+              <button onClick={handleBulkMoveSubmit} title="Move Selected">
+                Move
+              </button>
+            </div>
+
+            <div className="flex-row">
+              <MdCheck
+                className="icon-button"
+                size={ICON_SIZE}
+                onClick={selectAllImagesForActiveBoard}
+                title="Select All In Board"
+                style={{
+                  cursor: menuDisabled ? "default" : "pointer",
+                  opacity: menuDisabled ? 0.5 : 1,
+                }}
+              />
+
+              <GoCircleSlash
+                className="icon-button"
+                size={ICON_SIZE}
+                onClick={clearOpenBoardSelection}
+                title="Deselect All"
+                style={{
+                  cursor:
+                    menuDisabled || activeSelectedIndexes.length === 0
+                      ? "default"
+                      : "pointer",
+                  opacity:
+                    menuDisabled || activeSelectedIndexes.length === 0
+                      ? 0.5
+                      : 1,
+                }}
+              />
+
+              <MdAutoAwesome
+                className="icon-button"
+                size={ICON_SIZE}
+                onClick={handleAnalyzeSelectedTitles}
+                title="Analyze Selected"
+                style={{
+                  cursor:
+                    menuDisabled ||
+                    activeSelectedIndexes.length === 0 ||
+                    isAnalyzingTitles
+                      ? "default"
+                      : "pointer",
+                  opacity:
+                    menuDisabled ||
+                    activeSelectedIndexes.length === 0 ||
+                    isAnalyzingTitles
+                      ? 0.5
+                      : 1,
+                }}
+              />
+
+              <IoMdArrowRoundUp
+                className="icon-button"
+                size={ICON_SIZE}
+                onClick={handleBulkMoveToTop}
+                title="Move Selected To Top"
+                style={{
+                  cursor:
+                    menuDisabled || activeSelectedIndexes.length === 0
+                      ? "default"
+                      : "pointer",
+                  opacity:
+                    menuDisabled || activeSelectedIndexes.length === 0
+                      ? 0.5
+                      : 1,
+                }}
+              />
+
+              <IoMdArrowRoundDown
+                className="icon-button"
+                size={ICON_SIZE}
+                onClick={handleBulkMoveToBottom}
+                title="Move Selected To Bottom"
+                style={{
+                  cursor:
+                    menuDisabled || activeSelectedIndexes.length === 0
+                      ? "default"
+                      : "pointer",
+                  opacity:
+                    menuDisabled || activeSelectedIndexes.length === 0
+                      ? 0.5
+                      : 1,
+                }}
+              />
+
+              <AiOutlineDelete
+                className="icon-button"
+                size={ICON_SIZE}
+                onClick={handleBulkDelete}
+                title="Delete Selected"
+                style={{
+                  cursor:
+                    menuDisabled || activeSelectedIndexes.length === 0
+                      ? "default"
+                      : "pointer",
+                  opacity:
+                    menuDisabled || activeSelectedIndexes.length === 0
+                      ? 0.5
+                      : 1,
+                }}
+              />
+            </div>
+
+            <datalist id={activeAuthorListId}>
+              {activeFrequentAuthors.map((author) => (
+                <option key={author} value={author} />
+              ))}
+            </datalist>
+          </>
+        )}
       </div>
 
       {fullscreenViewer &&
@@ -2250,6 +2298,21 @@ const JsonEditorPage = () => {
 
           const embedUrl = getYoutubeEmbedUrl(activeImage.image)
 
+          const handleFullscreenGoogleImageSearch = (e) => {
+            e.preventDefault()
+            e.stopPropagation()
+
+            if (!activeImage.image?.trim()) return
+
+            window.open(
+              `https://lens.google.com/uploadbyurl?url=${encodeURIComponent(
+                activeImage.image,
+              )}`,
+              "_blank",
+              "noopener,noreferrer",
+            )
+          }
+
           return (
             <div
               onClick={closeFullscreenViewer}
@@ -2257,7 +2320,7 @@ const JsonEditorPage = () => {
                 position: "fixed",
                 inset: 0,
                 zIndex: 10000,
-                background: "rgba(0,0,0,0.92)",
+                background: "rgba(0,0,0,0.9)",
               }}
             >
               <div
@@ -2271,18 +2334,31 @@ const JsonEditorPage = () => {
                   justifyContent: "space-between",
                   alignItems: "center",
                   color: "#fff",
-                  zIndex: 2,
+                  zIndex: 3,
                   gap: 20,
                 }}
               >
                 <div style={{ fontSize: 14 }}>
-                  {`${fullscreenViewer.imageIndex + 1} / ${board.images.length} | ${activeImage.imageAuthor}`}
+                  {`${fullscreenViewer.imageIndex + 1} / ${board.images.length} | ${
+                    activeImage.imageAuthor || ""
+                  }`}
                 </div>
 
                 <div
                   className="flex-row"
                   style={{ gap: 10, alignItems: "center" }}
                 >
+                  <IoLogoGoogle
+                    className="icon-button"
+                    size={ICON_SIZE}
+                    onClick={handleFullscreenGoogleImageSearch}
+                    title="Google"
+                    style={{
+                      cursor: activeImage.image?.trim() ? "pointer" : "default",
+                      opacity: activeImage.image?.trim() ? 1 : 0.5,
+                    }}
+                  />
+
                   <IoMdArrowRoundUp
                     className="icon-button"
                     size={ICON_SIZE}
@@ -2293,12 +2369,16 @@ const JsonEditorPage = () => {
                       const currentBoard = data.find(
                         (item) => item.id === fullscreenViewer?.boardId,
                       )
+
                       if (current == null || !currentBoard) return
                       if (current <= 0) return
+
+                      markDirty()
 
                       setData((prev) =>
                         prev.map((item) => {
                           if (item.id !== fullscreenViewer.boardId) return item
+
                           return {
                             ...item,
                             images: moveImageInArray(item.images, current, 0),
@@ -2308,6 +2388,7 @@ const JsonEditorPage = () => {
 
                       setSelectionByBoard((prev) => {
                         const selected = prev[fullscreenViewer.boardId] || []
+
                         return {
                           ...prev,
                           [fullscreenViewer.boardId]: selected.map((idx) => {
@@ -2320,6 +2401,7 @@ const JsonEditorPage = () => {
 
                       setLastSelectedByBoard((prev) => {
                         const currentLast = prev[fullscreenViewer.boardId]
+
                         return {
                           ...prev,
                           [fullscreenViewer.boardId]:
@@ -2335,7 +2417,7 @@ const JsonEditorPage = () => {
                         prev
                           ? {
                               ...prev,
-                              imageIndex: current,
+                              imageIndex: 0,
                             }
                           : prev,
                       )
@@ -2356,14 +2438,18 @@ const JsonEditorPage = () => {
                       const currentBoard = data.find(
                         (item) => item.id === fullscreenViewer?.boardId,
                       )
+
                       if (current == null || !currentBoard) return
 
                       const lastIndex = currentBoard.images.length - 1
                       if (current >= lastIndex) return
 
+                      markDirty()
+
                       setData((prev) =>
                         prev.map((item) => {
                           if (item.id !== fullscreenViewer.boardId) return item
+
                           return {
                             ...item,
                             images: moveImageInArray(
@@ -2377,6 +2463,7 @@ const JsonEditorPage = () => {
 
                       setSelectionByBoard((prev) => {
                         const selected = prev[fullscreenViewer.boardId] || []
+
                         return {
                           ...prev,
                           [fullscreenViewer.boardId]: selected.map((idx) => {
@@ -2389,6 +2476,7 @@ const JsonEditorPage = () => {
 
                       setLastSelectedByBoard((prev) => {
                         const currentLast = prev[fullscreenViewer.boardId]
+
                         return {
                           ...prev,
                           [fullscreenViewer.boardId]:
@@ -2404,7 +2492,7 @@ const JsonEditorPage = () => {
                         prev
                           ? {
                               ...prev,
-                              imageIndex: current,
+                              imageIndex: lastIndex,
                             }
                           : prev,
                       )
@@ -2441,7 +2529,7 @@ const JsonEditorPage = () => {
                     width: "100%",
                     display: "grid",
                     placeItems: "center",
-                    padding: "72px 20px 20px",
+                    padding: "72px 20px 72px",
                     boxSizing: "border-box",
                   }}
                 >
@@ -2482,6 +2570,33 @@ const JsonEditorPage = () => {
                       }}
                     />
                   ) : null}
+                </div>
+              </div>
+
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  position: "absolute",
+                  left: 10,
+                  right: 10,
+                  bottom: 20,
+                  padding: 10,
+                  zIndex: 3,
+                  display: "flex",
+                  justifyContent: "center",
+                  pointerEvents: "none",
+                }}
+              >
+                <div
+                  style={{
+                    color: "#fff",
+                    fontSize: 16,
+                    lineHeight: 1.3,
+                    wordBreak: "break-word",
+                    pointerEvents: "auto",
+                  }}
+                >
+                  {activeImage.title || "Untitled"}
                 </div>
               </div>
             </div>
