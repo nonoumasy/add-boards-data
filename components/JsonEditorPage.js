@@ -37,10 +37,12 @@ import { HiPlusSm } from "react-icons/hi"
 import { GoCircleSlash, GoImage } from "react-icons/go"
 import { PiTextAa } from "react-icons/pi"
 import { FaCircleUser } from "react-icons/fa6"
+import { IoImagesOutline } from "react-icons/io5"
+import { DividerComp } from "./DividerComp"
 
 const ICON_SIZE = 24
 const MENU_WIDTH = 300
-const MENU_FALLBACK_HEIGHT = 450
+const MENU_HEIGHT = 450
 const MENU_EDGE_GAP = 8
 
 const defaultImage =
@@ -241,7 +243,7 @@ const clampNumber = (value, min, max) => {
 
 const getMaxFloatingPercent = (
   menuWidth = MENU_WIDTH,
-  menuHeight = MENU_FALLBACK_HEIGHT,
+  menuHeight = MENU_HEIGHT,
 ) => {
   if (typeof window === "undefined") {
     return {
@@ -262,7 +264,7 @@ const getMaxFloatingPercent = (
 const clampFloatingPosition = (
   position,
   menuWidth = MENU_WIDTH,
-  menuHeight = MENU_FALLBACK_HEIGHT,
+  menuHeight = MENU_HEIGHT,
 ) => {
   const { maxXPercent, maxYPercent } = getMaxFloatingPercent(
     menuWidth,
@@ -441,6 +443,14 @@ const JsonEditorPage = () => {
 
   const openBoardDuplicateCount = openBoard
     ? getDuplicateItemCount(openBoard.images)
+    : 0
+
+  const openBoardMissingTitleCount = openBoard
+    ? openBoard.images.filter((img) => !img.title?.trim()).length
+    : 0
+
+  const openBoardMissingAuthorCount = openBoard
+    ? openBoard.images.filter((img) => !img.imageAuthor?.trim()).length
     : 0
 
   const activeSelectedIndexes = openBoard
@@ -878,7 +888,7 @@ const JsonEditorPage = () => {
       offsetX: rect ? e.clientX - rect.left : 0,
       offsetY: rect ? e.clientY - rect.top : 0,
       menuWidth: rect?.width || MENU_WIDTH,
-      menuHeight: rect?.height || MENU_FALLBACK_HEIGHT,
+      menuHeight: rect?.height || MENU_HEIGHT,
     }
 
     window.addEventListener("mousemove", handleMenuDragMove, { passive: true })
@@ -933,7 +943,7 @@ const JsonEditorPage = () => {
     const clamped = clampFloatingPosition(
       floatingMenuPosition,
       menuRef.current?.getBoundingClientRect()?.width || MENU_WIDTH,
-      menuRef.current?.getBoundingClientRect()?.height || MENU_FALLBACK_HEIGHT,
+      menuRef.current?.getBoundingClientRect()?.height || MENU_HEIGHT,
     )
 
     dragPositionRef.current = clamped
@@ -949,7 +959,7 @@ const JsonEditorPage = () => {
     const clamped = clampFloatingPosition(
       dragPositionRef.current,
       menuRef.current?.getBoundingClientRect()?.width || MENU_WIDTH,
-      menuRef.current?.getBoundingClientRect()?.height || MENU_FALLBACK_HEIGHT,
+      menuRef.current?.getBoundingClientRect()?.height || MENU_HEIGHT,
     )
 
     dragPositionRef.current = clamped
@@ -962,7 +972,7 @@ const JsonEditorPage = () => {
       const clamped = clampFloatingPosition(
         dragPositionRef.current,
         rect?.width || MENU_WIDTH,
-        rect?.height || MENU_FALLBACK_HEIGHT,
+        rect?.height || MENU_HEIGHT,
       )
 
       dragPositionRef.current = clamped
@@ -1797,6 +1807,7 @@ const JsonEditorPage = () => {
         ))}
       </div>
 
+      {/* MENU */}
       <div
         ref={menuRef}
         className="flex-column"
@@ -1811,10 +1822,11 @@ const JsonEditorPage = () => {
           width: MENU_WIDTH,
           maxWidth: "calc(100vw - 16px)",
           borderRadius: 10,
+          border: "1px solid",
           backgroundColor: "Canvas",
           padding: 20,
           zIndex: 9999,
-          boxShadow: "0 5px 10px rgba(0,0,0,0.5)",
+          boxShadow: "0 1px 2px rgba(0,0,0,0.5), 0 5px 10px rgba(0,0,0,0.25)",
           gap: 10,
           willChange: "transform",
         }}
@@ -1866,7 +1878,7 @@ const JsonEditorPage = () => {
               size={ICON_SIZE}
               style={{
                 cursor: menuDisabled ? "default" : "pointer",
-                opacity: menuDisabled ? 0.4 : 1,
+                opacity: menuDisabled ? 0.5 : 1,
                 flex: "0 0 auto",
               }}
             />
@@ -1878,7 +1890,7 @@ const JsonEditorPage = () => {
               gap: 10,
             }}
           >
-            <img
+            {/* <img
               src={previewImage}
               alt=""
               style={{
@@ -1886,15 +1898,52 @@ const JsonEditorPage = () => {
                 height: 60,
                 objectFit: "cover",
               }}
-            />
+            /> */}
+
             <p>
-              {openBoard
-                ? `${openBoard.title || "Untitled"} ${activeSelectedIndexes.length}/${openBoard.images.length} | ${openBoardDuplicateCount} duplicates`
-                : "No open board"}
+              {openBoard ? (
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: 8,
+                  }}
+                >
+                  <span>{openBoard.title || "Untitled"}</span>
+
+                  <span>
+                    {activeSelectedIndexes.length}/{openBoard.images.length}
+                  </span>
+
+                  <span>|</span>
+
+                  <span className="flex-row" style={{ gap: 5 }}>
+                    {openBoardMissingTitleCount}
+                    <PiTextAa />
+                  </span>
+
+                  <span>|</span>
+
+                  <span className="flex-row" style={{ gap: 5 }}>
+                    {openBoardMissingAuthorCount}
+                    <FaCircleUser />
+                  </span>
+
+                  <span>|</span>
+
+                  <span className="flex-row" style={{ gap: 5 }}>
+                    {openBoardDuplicateCount}
+                    <IoImagesOutline />
+                  </span>
+                </span>
+              ) : (
+                "No open board"
+              )}
             </p>
           </div>
         </div>
-
+        {/* <DividerComp /> */}
         <div className="flex-row">
           <HiPlusSm
             onClick={addImage}
@@ -1903,7 +1952,7 @@ const JsonEditorPage = () => {
             size={ICON_SIZE}
             style={{
               cursor: menuDisabled ? "default" : "pointer",
-              opacity: menuDisabled ? 0.4 : 1,
+              opacity: menuDisabled ? 0.5 : 1,
             }}
           />
           <TbNumber10Small
@@ -1913,7 +1962,7 @@ const JsonEditorPage = () => {
             size={ICON_SIZE}
             style={{
               cursor: menuDisabled ? "default" : "pointer",
-              opacity: menuDisabled ? 0.4 : 1,
+              opacity: menuDisabled ? 0.5 : 1,
             }}
           />
           <TbPhotoMinus
@@ -1983,7 +2032,7 @@ const JsonEditorPage = () => {
                 menuDisabled ||
                 !bulkMoveBoardId ||
                 activeSelectedIndexes.length === 0
-                  ? 0.4
+                  ? 0.5
                   : 1,
             }}
           />
@@ -2011,7 +2060,7 @@ const JsonEditorPage = () => {
                 menuDisabled ||
                 !bulkMoveBoardId ||
                 activeSelectedIndexes.length === 0
-                  ? 0.4
+                  ? 0.5
                   : 1,
             }}
           />
@@ -2042,7 +2091,7 @@ const JsonEditorPage = () => {
                   ? "default"
                   : "pointer",
               opacity:
-                menuDisabled || activeSelectedIndexes.length === 0 ? 0.4 : 1,
+                menuDisabled || activeSelectedIndexes.length === 0 ? 0.5 : 1,
             }}
           />
         </div>
@@ -2073,7 +2122,7 @@ const JsonEditorPage = () => {
                   ? "default"
                   : "pointer",
               opacity:
-                menuDisabled || activeSelectedIndexes.length === 0 ? 0.4 : 1,
+                menuDisabled || activeSelectedIndexes.length === 0 ? 0.5 : 1,
             }}
           />
         </div>
@@ -2089,11 +2138,7 @@ const JsonEditorPage = () => {
             value={bulkMoveIndex}
             onChange={(e) => setBulkMoveIndex(e.target.value)}
           />
-          <button
-            onClick={handleBulkMoveSubmit}
-            title="Move Selected"
-            disabled={menuDisabled || activeSelectedIndexes.length === 0}
-          >
+          <button onClick={handleBulkMoveSubmit} title="Move Selected">
             Move
           </button>
         </div>
@@ -2106,7 +2151,7 @@ const JsonEditorPage = () => {
             title="Select All In Board"
             style={{
               cursor: menuDisabled ? "default" : "pointer",
-              opacity: menuDisabled ? 0.4 : 1,
+              opacity: menuDisabled ? 0.5 : 1,
             }}
           />
           <GoCircleSlash
@@ -2139,7 +2184,7 @@ const JsonEditorPage = () => {
                 menuDisabled ||
                 activeSelectedIndexes.length === 0 ||
                 isAnalyzingTitles
-                  ? 0.4
+                  ? 0.5
                   : 1,
             }}
           />
@@ -2154,7 +2199,7 @@ const JsonEditorPage = () => {
                   ? "default"
                   : "pointer",
               opacity:
-                menuDisabled || activeSelectedIndexes.length === 0 ? 0.4 : 1,
+                menuDisabled || activeSelectedIndexes.length === 0 ? 0.5 : 1,
             }}
           />
           <IoMdArrowRoundDown
@@ -2168,7 +2213,7 @@ const JsonEditorPage = () => {
                   ? "default"
                   : "pointer",
               opacity:
-                menuDisabled || activeSelectedIndexes.length === 0 ? 0.4 : 1,
+                menuDisabled || activeSelectedIndexes.length === 0 ? 0.5 : 1,
             }}
           />
           <AiOutlineDelete
@@ -2182,7 +2227,7 @@ const JsonEditorPage = () => {
                   ? "default"
                   : "pointer",
               opacity:
-                menuDisabled || activeSelectedIndexes.length === 0 ? 0.4 : 1,
+                menuDisabled || activeSelectedIndexes.length === 0 ? 0.5 : 1,
             }}
           />
         </div>
@@ -2931,12 +2976,8 @@ const SortableImage = ({
         }}
       />
 
-      <form
-        onSubmit={handleMoveToIndexSubmit}
-        style={{ display: "flex", gap: 10 }}
-      >
+      <div style={{ display: "flex", gap: 10 }}>
         <input
-          type="number"
           min="0"
           max={maxIndex}
           required
@@ -2945,8 +2986,8 @@ const SortableImage = ({
           onChange={(e) => setMoveToIndexValue(e.target.value)}
           onClick={(e) => e.stopPropagation()}
         />
-        <button type="submit">Move</button>
-      </form>
+        <button onSubmit={handleMoveToIndexSubmit}>Move</button>
+      </div>
 
       <div className="flex-row">
         <IoMdArrowRoundUp

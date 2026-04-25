@@ -53,6 +53,9 @@ button {
   font-size: 12px;
   text-transform: uppercase;
   cursor: pointer;
+  background-color: #222;
+  border-radius: 5px;
+  border: 1px solid;
 }
 
 .flex-row {
