@@ -39,7 +39,6 @@ import { GoCircleSlash, GoImage } from "react-icons/go"
 import { PiTextAa } from "react-icons/pi"
 import { FaCircleUser } from "react-icons/fa6"
 import { IoImagesOutline } from "react-icons/io5"
-import { DividerComp } from "./DividerComp"
 
 const ICON_SIZE = 24
 const MENU_WIDTH = 300
@@ -545,39 +544,52 @@ const JsonEditorPage = () => {
       return
     }
 
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
 
     try {
-      const text = await file.text()
-      const parsed = JSON.parse(text)
+      const loadedImages = []
 
-      if (!Array.isArray(parsed)) {
-        alert("JSON must be an array of objects.")
+      for (const file of files) {
+        const text = await file.text()
+        const parsed = JSON.parse(text)
+
+        if (!Array.isArray(parsed)) {
+          alert(`${file.name} must be an array of objects.`)
+          e.target.value = ""
+          return
+        }
+
+        const newImages = parsed.map((img) => ({
+          title: img?.title || "",
+          image: img?.image || "",
+          imageAuthor: img?.imageAuthor || "",
+        }))
+
+        loadedImages.push(...newImages)
+      }
+
+      if (!loadedImages.length) {
         e.target.value = ""
         return
       }
 
-      const newImages = parsed.map((img) => ({
-        title: img?.title || "",
-        image: img?.image || "",
-        imageAuthor: img?.imageAuthor || "",
-      }))
-
       markDirty()
+
       setData((prev) =>
         prev.map((item) =>
           item.id !== openBoardId
             ? item
             : {
                 ...item,
-                images: [...item.images, ...newImages],
+                images: [...item.images, ...loadedImages],
               },
         ),
       )
 
       scrollToOpenBoardBottom()
-    } catch {
+    } catch (err) {
+      console.error(err)
       alert("Invalid JSON file.")
     }
 
@@ -1433,6 +1445,131 @@ const JsonEditorPage = () => {
     })
   }
 
+  const updateFullscreenImageTitle = (value) => {
+    if (!fullscreenViewer) return
+
+    markDirty()
+
+    setData((prev) =>
+      prev.map((item) =>
+        item.id !== fullscreenViewer.boardId
+          ? item
+          : {
+              ...item,
+              images: item.images.map((img, idx) =>
+                idx === fullscreenViewer.imageIndex
+                  ? {
+                      ...img,
+                      title: value,
+                    }
+                  : img,
+              ),
+            },
+      ),
+    )
+  }
+
+  const updateFullscreenImageAuthor = (value) => {
+    if (!fullscreenViewer) return
+
+    markDirty()
+
+    setData((prev) =>
+      prev.map((item) =>
+        item.id !== fullscreenViewer.boardId
+          ? item
+          : {
+              ...item,
+              images: item.images.map((img, idx) =>
+                idx === fullscreenViewer.imageIndex
+                  ? {
+                      ...img,
+                      imageAuthor: value,
+                    }
+                  : img,
+              ),
+            },
+      ),
+    )
+  }
+
+  const moveFullscreenImageToBoard = (targetBoardId) => {
+    if (!fullscreenViewer || !targetBoardId) return
+
+    const sourceBoard = data.find(
+      (item) => item.id === fullscreenViewer.boardId,
+    )
+    const movedImage = sourceBoard?.images?.[fullscreenViewer.imageIndex]
+
+    if (!sourceBoard || !movedImage) return
+
+    const currentIndex = fullscreenViewer.imageIndex
+    const remainingLength = sourceBoard.images.length - 1
+
+    markDirty()
+
+    setData((prev) =>
+      prev.map((item) => {
+        if (item.id === fullscreenViewer.boardId) {
+          return {
+            ...item,
+            images: item.images.filter((_, idx) => idx !== currentIndex),
+          }
+        }
+
+        if (item.id === targetBoardId) {
+          return {
+            ...item,
+            images: [...item.images, movedImage],
+          }
+        }
+
+        return item
+      }),
+    )
+
+    setSelectionByBoard((prev) => {
+      const current = prev[fullscreenViewer.boardId] || []
+
+      return {
+        ...prev,
+        [fullscreenViewer.boardId]: current
+          .filter((idx) => idx !== currentIndex)
+          .map((idx) => (idx > currentIndex ? idx - 1 : idx)),
+      }
+    })
+
+    setLastSelectedByBoard((prev) => {
+      const current = prev[fullscreenViewer.boardId]
+
+      if (current == null) return prev
+
+      return {
+        ...prev,
+        [fullscreenViewer.boardId]:
+          current === currentIndex
+            ? null
+            : current > currentIndex
+              ? current - 1
+              : current,
+      }
+    })
+
+    if (remainingLength <= 0) {
+      setFullscreenViewer(null)
+      return
+    }
+
+    setFullscreenViewer((prev) =>
+      prev
+        ? {
+            ...prev,
+            imageIndex: currentIndex >= remainingLength ? 0 : currentIndex,
+          }
+        : prev,
+    )
+  }
+
   const deleteImageAtIndex = (itemId, index) => {
     const board = data.find((item) => item.id === itemId)
     if (!board) return
@@ -1761,7 +1898,7 @@ const JsonEditorPage = () => {
         />
       </div>
 
-      <div style={{ fontSize: 12 }}>
+      <div>
         file: {fileName}
         {fileHandle ? " | remembered" : ""}
         {!supportsFsAccess ? " | browser does not support same-file save" : ""}
@@ -1824,7 +1961,7 @@ const JsonEditorPage = () => {
           width: MENU_WIDTH,
           maxWidth: "calc(100vw - 16px)",
           borderRadius: 10,
-          border: "1px solid",
+          border: "1px solid white",
           backgroundColor: "Canvas",
           padding: 20,
           zIndex: 9999,
@@ -1895,19 +2032,35 @@ const JsonEditorPage = () => {
                 }}
               />
 
-              <MdRemove
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setIsMenuMinimized((prev) => !prev)
-                }}
-                className="icon-button"
-                title={isMenuMinimized ? "Expand Menu" : "Minimize Menu"}
-                size={ICON_SIZE}
-                style={{
-                  cursor: "pointer",
-                  flex: "0 0 auto",
-                }}
-              />
+              {isMenuMinimized ? (
+                <IoMdAdd
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsMenuMinimized(false)
+                  }}
+                  className="icon-button"
+                  title="Expand Menu"
+                  size={ICON_SIZE}
+                  style={{
+                    cursor: "pointer",
+                    flex: "0 0 auto",
+                  }}
+                />
+              ) : (
+                <MdRemove
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsMenuMinimized(true)
+                  }}
+                  className="icon-button"
+                  title="Minimize Menu"
+                  size={ICON_SIZE}
+                  style={{
+                    cursor: "pointer",
+                    flex: "0 0 auto",
+                  }}
+                />
+              )}
             </div>
           </div>
 
@@ -1930,8 +2083,9 @@ const JsonEditorPage = () => {
                   >
                     <span>{openBoard.title || "Untitled"}</span>
 
-                    <span>
+                    <span className="flex-row" style={{ gap: 5 }}>
                       {activeSelectedIndexes.length}/{openBoard.images.length}
+                      <GoImage />
                     </span>
 
                     <span>|</span>
@@ -2009,8 +2163,10 @@ const JsonEditorPage = () => {
             <input
               type="file"
               accept=".json"
+              multiple
               onChange={handleMenuLoadJson}
               disabled={menuDisabled}
+              style={{ border: "1px solid" }}
             />
 
             <div style={{ position: "relative" }}>
@@ -2161,7 +2317,6 @@ const JsonEditorPage = () => {
 
             <div style={{ display: "flex", gap: 10 }}>
               <input
-                disabled={menuDisabled}
                 type="number"
                 min="0"
                 max={openBoard?.images.length || 0}
@@ -2298,6 +2453,10 @@ const JsonEditorPage = () => {
 
           const embedUrl = getYoutubeEmbedUrl(activeImage.image)
 
+          const fullscreenTargetBoardOptions = data.filter(
+            (item) => item.id !== board.id,
+          )
+
           const handleFullscreenGoogleImageSearch = (e) => {
             e.preventDefault()
             e.stopPropagation()
@@ -2315,12 +2474,11 @@ const JsonEditorPage = () => {
 
           return (
             <div
-              onClick={closeFullscreenViewer}
               style={{
                 position: "fixed",
                 inset: 0,
                 zIndex: 10000,
-                background: "rgba(0,0,0,0.9)",
+                background: "#222",
               }}
             >
               <div
@@ -2338,10 +2496,8 @@ const JsonEditorPage = () => {
                   gap: 20,
                 }}
               >
-                <div style={{ fontSize: 14 }}>
-                  {`${fullscreenViewer.imageIndex + 1} / ${board.images.length} | ${
-                    activeImage.imageAuthor || ""
-                  }`}
+                <div style={{ flex: "0 0 auto" }}>
+                  {`${fullscreenViewer.imageIndex + 1} / ${board.images.length}`}
                 </div>
 
                 <div
@@ -2577,26 +2733,69 @@ const JsonEditorPage = () => {
                 onClick={(e) => e.stopPropagation()}
                 style={{
                   position: "absolute",
-                  left: 10,
                   right: 10,
-                  bottom: 20,
+                  bottom: 10,
                   padding: 10,
                   zIndex: 3,
                   display: "flex",
-                  justifyContent: "center",
+                  justifyContent: "flex-end",
                   pointerEvents: "none",
                 }}
               >
                 <div
                   style={{
-                    color: "#fff",
-                    fontSize: 16,
-                    lineHeight: 1.3,
-                    wordBreak: "break-word",
+                    width: 300,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 10,
                     pointerEvents: "auto",
                   }}
                 >
-                  {activeImage.title || "Untitled"}
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      moveFullscreenImageToBoard(e.target.value)
+                      e.target.value = ""
+                    }}
+                    style={{
+                      boxSizing: "border-box",
+                      color: "#fff",
+                      background: "rgba(0,0,0,0.75)",
+                    }}
+                  >
+                    <option value="">move this item to board</option>
+                    {fullscreenTargetBoardOptions.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.title || "Untitled"}
+                      </option>
+                    ))}
+                  </select>
+
+                  <input
+                    value={activeImage.imageAuthor || ""}
+                    onChange={(e) =>
+                      updateFullscreenImageAuthor(e.target.value)
+                    }
+                    placeholder="Author"
+                    style={{
+                      boxSizing: "border-box",
+                      color: "#fff",
+                      background: "rgba(0,0,0,0.75)",
+                    }}
+                  />
+
+                  <textarea
+                    rows={20}
+                    value={activeImage.title || ""}
+                    onChange={(e) => updateFullscreenImageTitle(e.target.value)}
+                    placeholder="Title"
+                    style={{
+                      boxSizing: "border-box",
+                      color: "#fff",
+                      background: "rgba(0,0,0,0.75)",
+                      resize: "vertical",
+                    }}
+                  />
                 </div>
               </div>
             </div>
