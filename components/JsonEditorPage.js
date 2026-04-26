@@ -1984,39 +1984,36 @@ const JsonEditorPage = () => {
               userSelect: "none",
             }}
           >
-            <MdDragIndicator
-              size={20}
-              title="Drag menu"
-              style={{
-                flex: "0 0 auto",
-              }}
-            />
-
-            <input
-              min="1"
-              max={openBoard?.images.length || 1}
-              value={scrollBoardIndex}
-              onChange={(e) => setScrollBoardIndex(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter") return
-                e.preventDefault()
-                scrollToBoardItem()
-              }}
-              onMouseDown={(e) => e.stopPropagation()}
-              style={{
-                textAlign: "right",
-                width: 50,
-                height: 30,
-              }}
-            />
-
             <div
-              className="flex-row"
               style={{
-                gap: 5,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
                 flex: "0 0 auto",
               }}
             >
+              <MdDragIndicator
+                size={20}
+                title="Drag menu"
+                style={{
+                  flex: "0 0 auto",
+                }}
+              />
+
+              <IoMdAdd
+                className="icon-button"
+                size={ICON_SIZE}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  createItem()
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                title="Create Board"
+                style={{
+                  cursor: "pointer",
+                  flex: "0 0 auto",
+                }}
+              />
               <MdClose
                 onClick={(e) => {
                   e.stopPropagation()
@@ -2029,6 +2026,32 @@ const JsonEditorPage = () => {
                   cursor: menuDisabled ? "default" : "pointer",
                   opacity: menuDisabled ? 0.5 : 1,
                   flex: "0 0 auto",
+                }}
+              />
+            </div>
+
+            <div
+              className="flex-row"
+              style={{
+                gap: 5,
+                flex: "0 0 auto",
+              }}
+            >
+              <input
+                min="1"
+                max={openBoard?.images.length || 1}
+                value={scrollBoardIndex}
+                onChange={(e) => setScrollBoardIndex(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return
+                  e.preventDefault()
+                  scrollToBoardItem()
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                style={{
+                  textAlign: "right",
+                  width: 60,
+                  height: 30,
                 }}
               />
 
@@ -2360,7 +2383,7 @@ const JsonEditorPage = () => {
                 }}
               />
 
-              <MdAutoAwesome
+              {/* <MdAutoAwesome
                 className="icon-button"
                 size={ICON_SIZE}
                 onClick={handleAnalyzeSelectedTitles}
@@ -2379,7 +2402,7 @@ const JsonEditorPage = () => {
                       ? 0.5
                       : 1,
                 }}
-              />
+              /> */}
 
               <IoMdArrowRoundUp
                 className="icon-button"
