@@ -1687,20 +1687,22 @@ const JsonEditorPage = () => {
         activeFrequentAuthors={activeFrequentAuthors}
       />
 
-      <FullscreenViewer
-        fullscreenViewer={fullscreenViewer}
-        data={sortedData}
-        markDirty={markDirty}
-        setData={setData}
-        setSelectionByBoard={setSelectionByBoard}
-        setLastSelectedByBoard={setLastSelectedByBoard}
-        setFullscreenViewer={setFullscreenViewer}
-        closeFullscreenViewer={closeFullscreenViewer}
-        moveFullscreenImageToBoard={moveFullscreenImageToBoard}
-        updateFullscreenImageUrl={updateFullscreenImageUrl}
-        updateFullscreenImageAuthor={updateFullscreenImageAuthor}
-        updateFullscreenImageTitle={updateFullscreenImageTitle}
-      />
+      {fullscreenViewer && (
+        <FullscreenViewer
+          fullscreenViewer={fullscreenViewer}
+          data={sortedData}
+          markDirty={markDirty}
+          setData={setData}
+          setSelectionByBoard={setSelectionByBoard}
+          setLastSelectedByBoard={setLastSelectedByBoard}
+          setFullscreenViewer={setFullscreenViewer}
+          closeFullscreenViewer={closeFullscreenViewer}
+          moveFullscreenImageToBoard={moveFullscreenImageToBoard}
+          updateFullscreenImageUrl={updateFullscreenImageUrl}
+          updateFullscreenImageAuthor={updateFullscreenImageAuthor}
+          updateFullscreenImageTitle={updateFullscreenImageTitle}
+        />
+      )}
 
       <div style={{ height: 10 }} />
       <FooterComp />

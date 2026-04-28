@@ -78,7 +78,7 @@ export const SortableImage = ({
     outline: isSelected
       ? "4px solid dodgerblue"
       : isDuplicate
-        ? "5px solid crimson"
+        ? "10px solid crimson"
         : "1px solid",
     borderRadius: 10,
     padding: 10,
