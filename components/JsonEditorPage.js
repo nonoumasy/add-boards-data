@@ -8,7 +8,6 @@ import {
 import { MdClear, MdOutlineFolder, MdSaveAlt } from "react-icons/md"
 import { IoMdAdd } from "react-icons/io"
 import { AiOutlineDelete } from "react-icons/ai"
-import { TbLayoutBottombarCollapse } from "react-icons/tb"
 import { FooterComp } from "@/components/FooterComp"
 import { GoImage } from "react-icons/go"
 import { PiTextAa } from "react-icons/pi"
@@ -22,6 +21,7 @@ import {
   MENU_EDGE_GAP,
   defaultImage,
   STORAGE_KEY,
+  FLOATING_MENU_POSITION_KEY,
   ANALYZE_CONCURRENCY,
   saveFileHandleToDb,
   getFileHandleFromDb,
@@ -38,7 +38,6 @@ import {
   moveSelectedImagesToIndex,
   getInitialFloatingMenuPosition,
   getFloatingTransform,
-  closeAllBoards,
   runWithConcurrency,
   sortBoardsByEventStartYear,
 } from "./utils"
@@ -159,6 +158,7 @@ const JsonEditorPage = () => {
   const applyFloatingPositionToNode = (xPercent, yPercent) => {
     const node = menuRef.current
     if (!node) return
+
     node.style.transform = getFloatingTransform(xPercent, yPercent)
   }
 
@@ -171,11 +171,28 @@ const JsonEditorPage = () => {
         el.scrollIntoView({
           behavior: "smooth",
           block: "end",
+          inline: "nearest",
         })
+      })
+    })
+  }
 
-        window.scrollTo({
-          top: document.body.scrollHeight,
+  const scrollToOpenBoardImage = (imageIndex) => {
+    const boardId = openBoardId
+
+    if (!boardId || imageIndex == null) return
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const targetKey = `${boardId}-${imageIndex}`
+        const targetNode = imageRefs.current[targetKey]
+
+        if (!targetNode) return
+
+        targetNode.scrollIntoView({
           behavior: "smooth",
+          block: "center",
+          inline: "nearest",
         })
       })
     })
@@ -243,6 +260,8 @@ const JsonEditorPage = () => {
         return
       }
 
+      const firstNewIndex = openBoard?.images?.length || 0
+
       markDirty()
 
       setData((prev) =>
@@ -256,7 +275,7 @@ const JsonEditorPage = () => {
         ),
       )
 
-      scrollToOpenBoardBottom()
+      scrollToOpenBoardImage(firstNewIndex)
     } catch (err) {
       console.error(err)
       alert("Invalid JSON file.")
@@ -482,6 +501,7 @@ const JsonEditorPage = () => {
       }
 
       markDirty()
+
       setData((prev) =>
         prev.map((item) => {
           if (item.id !== openBoard.id) return item
@@ -537,6 +557,7 @@ const JsonEditorPage = () => {
 
     dragRafRef.current = window.requestAnimationFrame(() => {
       dragRafRef.current = null
+
       applyFloatingPositionToNode(
         dragPositionRef.current.xPercent,
         dragPositionRef.current.yPercent,
@@ -652,6 +673,7 @@ const JsonEditorPage = () => {
   useEffect(() => {
     const handleResize = () => {
       const rect = menuRef.current?.getBoundingClientRect()
+
       const clamped = clampFloatingPosition(
         dragPositionRef.current,
         rect?.width || MENU_WIDTH,
@@ -670,6 +692,7 @@ const JsonEditorPage = () => {
   useEffect(() => {
     const handleBeforeUnload = (e) => {
       if (!dirty) return
+
       e.preventDefault()
       e.returnValue = ""
     }
@@ -702,17 +725,21 @@ const JsonEditorPage = () => {
 
     setSelectionByBoard((prev) => {
       const next = {}
+
       if (willOpen) {
         next[boardId] = prev[boardId] || []
       }
+
       return next
     })
 
     setLastSelectedByBoard((prev) => {
       const next = {}
+
       if (willOpen) {
         next[boardId] = prev[boardId] ?? null
       }
+
       return next
     })
 
@@ -790,9 +817,11 @@ const JsonEditorPage = () => {
 
         const url = URL.createObjectURL(blob)
         const a = document.createElement("a")
+
         a.href = url
         a.download = `${fileName}.json`
         a.click()
+
         URL.revokeObjectURL(url)
 
         localStorage.removeItem(STORAGE_KEY)
@@ -818,12 +847,14 @@ const JsonEditorPage = () => {
       }
 
       const hasPermission = await requestFilePermission(handle)
+
       if (!hasPermission) {
         alert("Write permission was not granted.")
         return
       }
 
       const writable = await handle.createWritable()
+
       await writable.write(JSON.stringify(clean, null, 2))
       await writable.close()
 
@@ -845,19 +876,10 @@ const JsonEditorPage = () => {
 
   const updateItem = (id, key, value) => {
     markDirty()
+
     setData((prev) =>
       prev.map((item) => (item.id === id ? { ...item, [key]: value } : item)),
     )
-  }
-
-  const collapseAllBoards = () => {
-    setData((prev) => closeAllBoards(prev))
-    setSelectionByBoard({})
-    setLastSelectedByBoard({})
-    setBulkMoveIndex("")
-    setBulkMoveBoardId("")
-    setBulkTitle("")
-    setBulkAuthor("")
   }
 
   const closeOpenBoard = () => {
@@ -880,6 +902,7 @@ const JsonEditorPage = () => {
 
   const deleteItem = (id) => {
     markDirty()
+
     setData((prev) => prev.filter((item) => item.id !== id))
 
     setSelectionByBoard((prev) => {
@@ -918,18 +941,20 @@ const JsonEditorPage = () => {
     const newId = createId()
 
     markDirty()
-    setData((prev) =>
-      closeAllBoards([
-        ...prev,
-        {
-          id: newId,
-          title: "",
-          eventStartYear: "",
-          images: [],
-          open: true,
-        },
-      ]),
-    )
+
+    setData((prev) => [
+      ...prev.map((item) => ({
+        ...item,
+        open: false,
+      })),
+      {
+        id: newId,
+        title: "",
+        eventStartYear: "",
+        images: [],
+        open: true,
+      },
+    ])
 
     setSelectionByBoard({
       [newId]: [],
@@ -946,9 +971,12 @@ const JsonEditorPage = () => {
   }
 
   const addImage = () => {
-    if (!openBoardId) return
+    if (!openBoardId || !openBoard) return
+
+    const newImageIndex = openBoard.images.length
 
     markDirty()
+
     setData((prev) =>
       prev.map((item) =>
         item.id !== openBoardId
@@ -963,11 +991,13 @@ const JsonEditorPage = () => {
       ),
     )
 
-    scrollToOpenBoardBottom()
+    scrollToOpenBoardImage(newImageIndex)
   }
 
   const add10Images = () => {
-    if (!openBoardId) return
+    if (!openBoardId || !openBoard) return
+
+    const firstNewImageIndex = openBoard.images.length
 
     const newImages = Array.from({ length: 10 }).map(() => ({
       title: "",
@@ -976,6 +1006,7 @@ const JsonEditorPage = () => {
     }))
 
     markDirty()
+
     setData((prev) =>
       prev.map((item) =>
         item.id !== openBoardId
@@ -987,7 +1018,7 @@ const JsonEditorPage = () => {
       ),
     )
 
-    scrollToOpenBoardBottom()
+    scrollToOpenBoardImage(firstNewImageIndex)
   }
 
   const handleSelectImage = (idx, isShiftKey, imageCount) => {
@@ -1007,10 +1038,12 @@ const JsonEditorPage = () => {
       ) {
         const start = Math.min(lastSelectedIndex, idx)
         const end = Math.max(lastSelectedIndex, idx)
+
         const range = Array.from(
           { length: end - start + 1 },
           (_, i) => start + i,
         )
+
         const nextSet = new Set(current)
 
         range.forEach((value) => {
@@ -1049,6 +1082,7 @@ const JsonEditorPage = () => {
       ...prev,
       [openBoardId]: [],
     }))
+
     setLastSelectedByBoard((prev) => ({
       ...prev,
       [openBoardId]: null,
@@ -1075,6 +1109,7 @@ const JsonEditorPage = () => {
 
   const openFullscreenViewer = (imageIndex) => {
     if (!openBoardId) return
+
     setFullscreenViewer({ boardId: openBoardId, imageIndex })
   }
 
@@ -1194,6 +1229,7 @@ const JsonEditorPage = () => {
     const sourceBoard = data.find(
       (item) => item.id === fullscreenViewer.boardId,
     )
+
     const movedImage = sourceBoard?.images?.[fullscreenViewer.imageIndex]
 
     if (!sourceBoard || !movedImage) return
@@ -1284,6 +1320,7 @@ const JsonEditorPage = () => {
 
     setSelectionByBoard((prev) => {
       const current = prev[itemId] || []
+
       const nextIndexes = current
         .filter((selectedIndex) => selectedIndex !== index)
         .map((selectedIndex) =>
@@ -1298,6 +1335,7 @@ const JsonEditorPage = () => {
 
     setLastSelectedByBoard((prev) => {
       const current = prev[itemId]
+
       if (current == null) return prev
 
       return {
@@ -1340,6 +1378,7 @@ const JsonEditorPage = () => {
 
   const deleteImage = (index) => {
     if (!openBoardId) return
+
     deleteImageAtIndex(openBoardId, index)
   }
 
@@ -1352,6 +1391,7 @@ const JsonEditorPage = () => {
     const targetIndex = clampIndex(bulkMoveIndex, openBoard.images.length)
 
     markDirty()
+
     setData((prev) =>
       prev.map((it) => {
         if (it.id !== openBoard.id) return it
@@ -1377,6 +1417,7 @@ const JsonEditorPage = () => {
     const selectedSet = new Set(activeSelectedIndexes)
 
     markDirty()
+
     setData((prev) =>
       prev.map((it) =>
         it.id !== openBoard.id
@@ -1400,6 +1441,7 @@ const JsonEditorPage = () => {
     const selectedSet = new Set(activeSelectedIndexes)
 
     markDirty()
+
     setData((prev) =>
       prev.map((it) =>
         it.id !== openBoard.id
@@ -1423,9 +1465,11 @@ const JsonEditorPage = () => {
     if (menuDisabled || activeSelectedIndexes.length === 0) return
 
     markDirty()
+
     setData((prev) =>
       prev.map((it) => {
         if (it.id !== openBoard.id) return it
+
         return {
           ...it,
           images: moveSelectedImagesToIndex(
@@ -1444,9 +1488,11 @@ const JsonEditorPage = () => {
     if (menuDisabled || activeSelectedIndexes.length === 0) return
 
     markDirty()
+
     setData((prev) =>
       prev.map((it) => {
         if (it.id !== openBoard.id) return it
+
         return {
           ...it,
           images: moveSelectedImagesToIndex(
@@ -1471,6 +1517,7 @@ const JsonEditorPage = () => {
     const selectedSet = new Set(activeSelectedIndexes)
 
     markDirty()
+
     setData((prev) =>
       prev.map((it) =>
         it.id !== openBoard.id
@@ -1489,6 +1536,7 @@ const JsonEditorPage = () => {
   useEffect(() => {
     const handleKeyDown = (e) => {
       const tagName = e.target?.tagName?.toLowerCase()
+
       const isTypingTarget =
         tagName === "input" ||
         tagName === "textarea" ||
@@ -1527,10 +1575,12 @@ const JsonEditorPage = () => {
 
         if (e.key === "Delete" || e.key === "Backspace") {
           e.preventDefault()
+
           deleteImageAtIndex(
             fullscreenViewer.boardId,
             fullscreenViewer.imageIndex,
           )
+
           return
         }
 
@@ -1563,6 +1613,7 @@ const JsonEditorPage = () => {
           title="Load json"
           style={{ cursor: "pointer" }}
         />
+
         <IoMdAdd
           className="icon-button"
           size={ICON_SIZE}
@@ -1570,25 +1621,20 @@ const JsonEditorPage = () => {
           title="Create Board"
           style={{ cursor: "pointer" }}
         />
+
         <MdSaveAlt
           className="icon-button"
           size={ICON_SIZE}
           onClick={handleSave}
-          title="Save Board"
+          title="Save Data"
           style={{ cursor: "pointer" }}
         />
+
         <MdClear
           className="icon-button"
           size={ICON_SIZE}
           onClick={forgetSavedFile}
           title="Clear Board json"
-          style={{ cursor: "pointer" }}
-        />
-        <TbLayoutBottombarCollapse
-          className="icon-button"
-          size={ICON_SIZE}
-          onClick={collapseAllBoards}
-          title="Collapse All Boards"
           style={{ cursor: "pointer" }}
         />
       </div>
@@ -1685,6 +1731,8 @@ const JsonEditorPage = () => {
         handleBulkMoveToBottom={handleBulkMoveToBottom}
         handleBulkDelete={handleBulkDelete}
         activeFrequentAuthors={activeFrequentAuthors}
+        handleAnalyzeSelectedTitles={handleAnalyzeSelectedTitles}
+        isAnalyzingTitles={isAnalyzingTitles}
       />
 
       {fullscreenViewer && (
@@ -1705,6 +1753,7 @@ const JsonEditorPage = () => {
       )}
 
       <div style={{ height: 10 }} />
+
       <FooterComp />
     </main>
   )
@@ -1728,6 +1777,7 @@ const BoardItem = ({
   const missingTitleCount = item.images.filter(
     (img) => !img.title?.trim(),
   ).length
+
   const missingAuthorCount = item.images.filter(
     (img) => !img.imageAuthor?.trim(),
   ).length
@@ -1753,11 +1803,13 @@ const BoardItem = ({
 
   const moveImageToTop = (idx) => {
     if (idx <= 0) return
+
     markDirty()
 
     setData((prev) =>
       prev.map((it) => {
         if (it.id !== item.id) return it
+
         return {
           ...it,
           images: moveImageInArray(it.images, idx, 0),
@@ -1768,11 +1820,13 @@ const BoardItem = ({
 
   const moveImageToBottom = (idx) => {
     if (idx === item.images.length - 1) return
+
     markDirty()
 
     setData((prev) =>
       prev.map((it) => {
         if (it.id !== item.id) return it
+
         return {
           ...it,
           images: moveImageInArray(it.images, idx, it.images.length - 1),
@@ -1783,6 +1837,7 @@ const BoardItem = ({
 
   const moveImageToIndex = (fromIndex, rawTargetIndex) => {
     const targetIndex = clampIndex(rawTargetIndex, item.images.length - 1)
+
     if (fromIndex === targetIndex) return
 
     markDirty()
@@ -1790,6 +1845,7 @@ const BoardItem = ({
     setData((prev) =>
       prev.map((it) => {
         if (it.id !== item.id) return it
+
         return {
           ...it,
           images: moveImageInArray(it.images, fromIndex, targetIndex),
@@ -1800,6 +1856,7 @@ const BoardItem = ({
 
   const handleImageDragEnd = (event) => {
     const { active, over } = event
+
     if (!over || active.id === over.id) return
 
     const oldIndex = Number(active.id)
@@ -1808,6 +1865,7 @@ const BoardItem = ({
     const newImages = arrayMove(item.images, oldIndex, newIndex)
 
     markDirty()
+
     setData((prev) =>
       prev.map((it) => (it.id === item.id ? { ...it, images: newImages } : it)),
     )
@@ -1966,6 +2024,7 @@ const BoardItem = ({
 
 const updateItemImage = (setData, markDirty) => (itemId, index, key, value) => {
   markDirty()
+
   setData((prev) =>
     prev.map((item) =>
       item.id !== itemId

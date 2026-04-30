@@ -313,12 +313,6 @@ export const getInitialFloatingMenuPosition = () => {
 export const getFloatingTransform = (xPercent, yPercent) =>
   `translate3d(${xPercent}vw, ${yPercent}vh, 0)`
 
-export const closeAllBoards = (items) =>
-  items.map((item) => ({
-    ...item,
-    open: false,
-  }))
-
 export const runWithConcurrency = async (items, limit, worker) => {
   const results = new Array(items.length)
   let nextIndex = 0
