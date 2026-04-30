@@ -213,6 +213,9 @@ export const SortableImage = ({
           padding: 5,
           resize: "vertical",
           border: !img.title?.trim() ? "2px solid crimson" : undefined,
+          backgroundColor: !img.title?.trim()
+            ? "rgba(220, 20, 60, 0.25)"
+            : undefined,
         }}
       />
 
@@ -226,6 +229,9 @@ export const SortableImage = ({
         onClick={(e) => e.stopPropagation()}
         style={{
           border: !img.imageAuthor?.trim() ? "2px solid green" : undefined,
+          backgroundColor: !img.imageAuthor?.trim()
+            ? "rgba(0, 128, 0, 0.25)"
+            : undefined,
         }}
       />
 
