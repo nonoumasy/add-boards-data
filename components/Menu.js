@@ -467,7 +467,7 @@ const Menu = ({
         </div>
 
         <div className="flex-row">
-          <MdCheck
+          {/* <MdCheck
             className="icon-button"
             size={ICON_SIZE}
             onClick={selectAllImagesForActiveBoard}
@@ -476,7 +476,7 @@ const Menu = ({
               cursor: menuDisabled ? "default" : "pointer",
               opacity: menuDisabled ? 0.5 : 1,
             }}
-          />
+          /> */}
 
           <GoCircleSlash
             className="icon-button"
