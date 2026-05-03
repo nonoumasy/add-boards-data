@@ -118,10 +118,8 @@ const Menu = ({
               flex: "0 0 auto",
             }}
           />
-
-          <IoMdAdd
+          <button
             className="icon-button"
-            size={ICON_SIZE}
             onClick={(e) => {
               e.stopPropagation()
               createItem()
@@ -132,7 +130,9 @@ const Menu = ({
               cursor: "pointer",
               flex: "0 0 auto",
             }}
-          />
+          >
+            N
+          </button>
           <MdClose
             onClick={(e) => {
               e.stopPropagation()
