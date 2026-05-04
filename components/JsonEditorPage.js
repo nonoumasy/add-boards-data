@@ -284,19 +284,64 @@ const JsonEditorPage = () => {
     e.target.value = ""
   }
 
+  const getDuplicateKeepScore = (img) => {
+    const values = [img.title, img.imageAuthor].map((value) =>
+      String(value || "").trim(),
+    )
+
+    return {
+      filledValueCount: values.filter(Boolean).length,
+      stringCount: values.reduce((total, value) => total + value.length, 0),
+    }
+  }
+
+  const isBetterDuplicateItem = (candidate, current) => {
+    const candidateScore = getDuplicateKeepScore(candidate)
+    const currentScore = getDuplicateKeepScore(current)
+
+    if (candidateScore.filledValueCount !== currentScore.filledValueCount) {
+      return candidateScore.filledValueCount > currentScore.filledValueCount
+    }
+
+    if (candidateScore.stringCount !== currentScore.stringCount) {
+      return candidateScore.stringCount > currentScore.stringCount
+    }
+
+    return false
+  }
+
   const handleOpenBoardAutoDeleteDuplicates = () => {
     if (!openBoard || openBoardDuplicateCount === 0) return
 
-    const seen = new Set()
+    const bestIndexByKey = new Map()
 
-    const dedupedImages = openBoard.images.filter((img) => {
+    openBoard.images.forEach((img, index) => {
+      const key = normalizeImageUrl(img.image)
+
+      if (!key) return
+
+      const currentBestIndex = bestIndexByKey.get(key)
+
+      if (currentBestIndex == null) {
+        bestIndexByKey.set(key, index)
+        return
+      }
+
+      const currentBestImage = openBoard.images[currentBestIndex]
+
+      if (isBetterDuplicateItem(img, currentBestImage)) {
+        bestIndexByKey.set(key, index)
+      }
+    })
+
+    const keptIndexes = new Set(bestIndexByKey.values())
+
+    const dedupedImages = openBoard.images.filter((img, index) => {
       const key = normalizeImageUrl(img.image)
 
       if (!key) return true
-      if (seen.has(key)) return false
 
-      seen.add(key)
-      return true
+      return keptIndexes.has(index)
     })
 
     markDirty()
@@ -1810,6 +1855,8 @@ const BoardItem = ({
     (img) => !img.imageAuthor?.trim(),
   ).length
 
+  const duplicateCount = getDuplicateItemCount(item.images)
+
   const frequentAuthors = Object.entries(
     (item.images || [])
       .map((img) => img.imageAuthor?.trim())
@@ -1958,6 +2005,20 @@ const BoardItem = ({
               </>
             )}
           </span>
+          {duplicateCount > 0 && (
+            <>
+              <span>|</span>
+              <span
+                className="flex-row"
+                style={{
+                  gap: 5,
+                  color: "crimson",
+                }}
+              >
+                {duplicateCount} duplicates
+              </span>
+            </>
+          )}
         </div>
 
         <AiOutlineDelete
