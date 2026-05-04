@@ -440,20 +440,30 @@ const JsonEditorPage = () => {
     return String(result?.title || "").trim()
   }
 
-  const handleAnalyzeSelectedTitles = async () => {
-    if (menuDisabled || activeSelectedIndexes.length === 0 || !openBoard) {
-      return
-    }
+  const analyzeAndApplyTitles = async (boardId, indexes) => {
+    if (isAnalyzingTitles) return
 
-    const selectedPayload = activeSelectedIndexes
+    const board = data.find((item) => item.id === boardId)
+    const targetIndexes = [...new Set(indexes)]
+      .map((idx) => Number(idx))
+      .filter(
+        (idx) =>
+          Number.isInteger(idx) &&
+          idx >= 0 &&
+          idx < (board?.images?.length || 0),
+      )
+
+    if (!board || targetIndexes.length === 0) return
+
+    const selectedPayload = targetIndexes
       .map((idx) => ({
         index: idx,
-        image: openBoard.images[idx]?.image || "",
+        image: board.images[idx]?.image || "",
       }))
       .filter((item) => item.image.trim())
 
     if (!selectedPayload.length) {
-      alert("No valid image URLs in the current selection.")
+      alert("No valid image URLs.")
       return
     }
 
@@ -503,18 +513,18 @@ const JsonEditorPage = () => {
       markDirty()
 
       setData((prev) =>
-        prev.map((item) => {
-          if (item.id !== openBoard.id) return item
-
-          return {
-            ...item,
-            images: item.images.map((img, idx) =>
-              titleByIndex.has(idx)
-                ? { ...img, title: titleByIndex.get(idx) }
-                : img,
-            ),
-          }
-        }),
+        prev.map((item) =>
+          item.id !== boardId
+            ? item
+            : {
+                ...item,
+                images: item.images.map((img, idx) =>
+                  titleByIndex.has(idx)
+                    ? { ...img, title: titleByIndex.get(idx) }
+                    : img,
+                ),
+              },
+        ),
       )
 
       if (failed.length > 0) {
@@ -528,6 +538,18 @@ const JsonEditorPage = () => {
     } finally {
       setIsAnalyzingTitles(false)
     }
+  }
+
+  const handleAnalyzeSingleImageTitle = async (boardId, imageIndex) => {
+    await analyzeAndApplyTitles(boardId, [imageIndex])
+  }
+
+  const handleAnalyzeSelectedTitles = async () => {
+    if (menuDisabled || activeSelectedIndexes.length === 0 || !openBoard) {
+      return
+    }
+
+    await analyzeAndApplyTitles(openBoard.id, activeSelectedIndexes)
   }
 
   const handleMenuDragMove = (e) => {
@@ -1672,6 +1694,8 @@ const JsonEditorPage = () => {
             onOpenFullscreen={(imageIndex) =>
               item.id === openBoardId && openFullscreenViewer(imageIndex)
             }
+            onAnalyzeImage={handleAnalyzeSingleImageTitle}
+            isAnalyzingTitles={isAnalyzingTitles}
             boardRef={(node) => {
               if (node) {
                 boardRefs.current[item.id] = node
@@ -1749,6 +1773,8 @@ const JsonEditorPage = () => {
           updateFullscreenImageUrl={updateFullscreenImageUrl}
           updateFullscreenImageAuthor={updateFullscreenImageAuthor}
           updateFullscreenImageTitle={updateFullscreenImageTitle}
+          onAnalyzeImage={handleAnalyzeSingleImageTitle}
+          isAnalyzingTitles={isAnalyzingTitles}
         />
       )}
 
@@ -1772,6 +1798,8 @@ const BoardItem = ({
   selectedIndexes,
   onSelectImage,
   onOpenFullscreen,
+  onAnalyzeImage,
+  isAnalyzingTitles,
   boardRef,
 }) => {
   const missingTitleCount = item.images.filter(
@@ -2003,6 +2031,10 @@ const BoardItem = ({
                       isSelected={selectedIndexes.includes(idx)}
                       onSelectImage={onSelectImage}
                       onOpenFullscreen={onOpenFullscreen}
+                      onAnalyzeImage={(imageIndex) =>
+                        onAnalyzeImage(item.id, imageIndex)
+                      }
+                      isAnalyzingImage={isAnalyzingTitles}
                       maxIndex={item.images.length - 1}
                     />
                   )

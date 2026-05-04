@@ -7,7 +7,7 @@ import {
   IoMdArrowRoundDown,
   IoMdArrowRoundUp,
 } from "react-icons/io"
-import { MdOutlineDragIndicator } from "react-icons/md"
+import { MdAutoAwesome, MdOutlineDragIndicator } from "react-icons/md"
 import { getYoutubeEmbedUrl, ICON_SIZE } from "./utils"
 
 export const SortableImage = ({
@@ -26,6 +26,8 @@ export const SortableImage = ({
   isSelected,
   onSelectImage,
   onOpenFullscreen,
+  onAnalyzeImage,
+  isAnalyzingImage,
   maxIndex,
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition } =
@@ -45,6 +47,15 @@ export const SortableImage = ({
       "_blank",
       "noopener,noreferrer",
     )
+  }
+
+  const handleAnalyzeImage = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (!img.image?.trim() || isAnalyzingImage) return
+
+    onAnalyzeImage?.(index)
   }
 
   const handleMoveToIndexSubmit = (e) => {
@@ -108,6 +119,8 @@ export const SortableImage = ({
     display: "block",
   }
 
+  const analyzeButtonDisabled = !img.image?.trim() || isAnalyzingImage
+
   return (
     <div
       ref={(node) => {
@@ -154,6 +167,27 @@ export const SortableImage = ({
           }}
           style={mediaWrapperStyle}
         >
+          <div
+            className="flex-row"
+            style={{
+              position: "absolute",
+              top: 10,
+              left: 10,
+              zIndex: 2,
+            }}
+          >
+            <MdAutoAwesome
+              className="icon-button"
+              size={ICON_SIZE}
+              onClick={handleAnalyzeImage}
+              title="Analyze"
+              style={{
+                cursor: analyzeButtonDisabled ? "default" : "pointer",
+                opacity: analyzeButtonDisabled ? 0.5 : 1,
+              }}
+            />
+          </div>
+
           <div
             className="flex-row"
             style={{

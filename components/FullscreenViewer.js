@@ -1,4 +1,4 @@
-import { MdClose } from "react-icons/md"
+import { MdAutoAwesome, MdClose } from "react-icons/md"
 import {
   IoLogoGoogle,
   IoMdArrowRoundDown,
@@ -19,6 +19,8 @@ const FullscreenViewer = ({
   updateFullscreenImageUrl,
   updateFullscreenImageAuthor,
   updateFullscreenImageTitle,
+  onAnalyzeImage,
+  isAnalyzingTitles,
 }) => {
   const board = data.find((item) => item.id === fullscreenViewer.boardId)
   const activeImage = board?.images?.[fullscreenViewer.imageIndex]
@@ -43,6 +45,15 @@ const FullscreenViewer = ({
       "_blank",
       "noopener,noreferrer",
     )
+  }
+
+  const handleFullscreenAnalyzeImage = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (!activeImage.image?.trim() || isAnalyzingTitles) return
+
+    onAnalyzeImage?.(fullscreenViewer.boardId, fullscreenViewer.imageIndex)
   }
 
   const moveActiveImageToTop = (e) => {
@@ -198,6 +209,21 @@ const FullscreenViewer = ({
         </div>
 
         <div className="flex-row" style={{ gap: 10, alignItems: "center" }}>
+          <MdAutoAwesome
+            className="icon-button"
+            size={ICON_SIZE}
+            onClick={handleFullscreenAnalyzeImage}
+            title="Analyze"
+            style={{
+              cursor:
+                activeImage.image?.trim() && !isAnalyzingTitles
+                  ? "pointer"
+                  : "default",
+              opacity:
+                activeImage.image?.trim() && !isAnalyzingTitles ? 1 : 0.5,
+            }}
+          />
+
           <IoLogoGoogle
             className="icon-button"
             size={ICON_SIZE}
