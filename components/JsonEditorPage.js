@@ -285,13 +285,14 @@ const JsonEditorPage = () => {
   }
 
   const getDuplicateKeepScore = (img) => {
-    const values = [img.title, img.imageAuthor].map((value) =>
-      String(value || "").trim(),
-    )
+    const title = String(img.title || "").trim()
+    const imageAuthor = String(img.imageAuthor || "").trim()
 
     return {
-      filledValueCount: values.filter(Boolean).length,
-      stringCount: values.reduce((total, value) => total + value.length, 0),
+      hasTitle: title.length > 0,
+      hasAuthor: imageAuthor.length > 0,
+      filledValueCount: [title, imageAuthor].filter(Boolean).length,
+      stringCount: title.length + imageAuthor.length,
     }
   }
 
@@ -299,8 +300,16 @@ const JsonEditorPage = () => {
     const candidateScore = getDuplicateKeepScore(candidate)
     const currentScore = getDuplicateKeepScore(current)
 
+    if (candidateScore.hasTitle !== currentScore.hasTitle) {
+      return candidateScore.hasTitle
+    }
+
     if (candidateScore.filledValueCount !== currentScore.filledValueCount) {
       return candidateScore.filledValueCount > currentScore.filledValueCount
+    }
+
+    if (candidateScore.hasAuthor !== currentScore.hasAuthor) {
+      return candidateScore.hasAuthor
     }
 
     if (candidateScore.stringCount !== currentScore.stringCount) {
