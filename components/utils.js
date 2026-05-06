@@ -175,7 +175,9 @@ export const normalizeLoadedData = (parsed) =>
   (parsed || []).map((item) => ({
     id: createId(),
     title: item.title || "",
-    eventStartYear: item.eventStartYear || "",
+    eventStartYear: parseOptionalYear(item.eventStartYear),
+    eventEndYear: parseOptionalYear(item.eventEndYear),
+    publishOn: item?.publishOn ?? true,
     images: (item.images || []).map((img) => ({
       title: img.title || "",
       image: img.image || "",
@@ -367,3 +369,13 @@ export const sortBoardsByEventStartYear = (boards) =>
       return a.originalIndex - b.originalIndex
     })
     .map(({ board }) => board)
+
+export const parseOptionalYear = (value) => {
+  const trimmed = String(value ?? "").trim()
+
+  if (trimmed === "") return null
+
+  const parsed = Number(trimmed)
+
+  return Number.isFinite(parsed) ? parsed : null
+}

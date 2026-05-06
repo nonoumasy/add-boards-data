@@ -40,6 +40,7 @@ import {
   getFloatingTransform,
   runWithConcurrency,
   sortBoardsByEventStartYear,
+  parseOptionalYear,
 } from "./utils"
 import { SortableImage } from "./SortableImage"
 
@@ -879,9 +880,13 @@ const JsonEditorPage = () => {
   }
 
   const handleSave = async () => {
-    const clean = sortBoardsByEventStartYear(data).map(
-      ({ id, open, ...rest }) => rest,
-    )
+    const clean = sortBoardsByEventStartYear(data).map((item) => ({
+      title: item.title || "",
+      eventStartYear: parseOptionalYear(item.eventStartYear),
+      eventEndYear: parseOptionalYear(item.eventEndYear),
+      publishOn: item.publishOn ?? true,
+      images: item.images || [],
+    }))
 
     try {
       let handle = fileHandle
@@ -1027,6 +1032,8 @@ const JsonEditorPage = () => {
         id: newId,
         title: "",
         eventStartYear: "",
+        eventEndYear: null,
+        publishOn: true,
         images: [],
         open: true,
       },
@@ -2048,12 +2055,58 @@ const BoardItem = ({
           />
 
           <input
+            type="number"
             placeholder="board eventStartYear"
-            value={item.eventStartYear}
+            value={item.eventStartYear ?? ""}
             onChange={(e) =>
-              updateItem(item.id, "eventStartYear", e.target.value)
+              updateItem(
+                item.id,
+                "eventStartYear",
+                parseOptionalYear(e.target.value),
+              )
             }
           />
+
+          <input
+            type="number"
+            placeholder="board eventEndYear"
+            value={item.eventEndYear ?? ""}
+            onChange={(e) =>
+              updateItem(
+                item.id,
+                "eventEndYear",
+                parseOptionalYear(e.target.value),
+              )
+            }
+          />
+          <label
+            className="flex-row"
+            style={{
+              cursor: "pointer",
+              width: "fit-content",
+              alignItems: "center",
+              gap: 8,
+              userSelect: "none",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={item.publishOn ?? true}
+              onChange={(e) =>
+                updateItem(item.id, "publishOn", e.target.checked)
+              }
+              style={{
+                width: 20,
+                height: 20,
+                minWidth: 20,
+                padding: 0,
+                margin: 0,
+                borderRadius: 5,
+                flex: "0 0 auto",
+              }}
+            />
+            <span>Publish on</span>
+          </label>
 
           <DndContext
             collisionDetection={closestCenter}
