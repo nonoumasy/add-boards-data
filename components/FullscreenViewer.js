@@ -21,6 +21,8 @@ const FullscreenViewer = ({
   updateFullscreenImageTitle,
   onAnalyzeImage,
   isAnalyzingTitles,
+  authorListId,
+  frequentAuthors = [],
 }) => {
   const board = data.find((item) => item.id === fullscreenViewer.boardId)
   const activeImage = board?.images?.[fullscreenViewer.imageIndex]
@@ -373,6 +375,7 @@ const FullscreenViewer = ({
             }}
           />
           <input
+            list={authorListId}
             value={activeImage.imageAuthor || ""}
             onChange={(e) => updateFullscreenImageAuthor(e.target.value)}
             placeholder="Author"
@@ -382,6 +385,14 @@ const FullscreenViewer = ({
               background: "rgba(0,0,0,0.75)",
             }}
           />
+
+          {authorListId && frequentAuthors.length > 0 && (
+            <datalist id={authorListId}>
+              {frequentAuthors.map((author) => (
+                <option key={author} value={author} />
+              ))}
+            </datalist>
+          )}
 
           <textarea
             rows={20}

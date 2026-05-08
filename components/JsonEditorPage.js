@@ -1836,6 +1836,8 @@ const JsonEditorPage = () => {
           updateFullscreenImageTitle={updateFullscreenImageTitle}
           onAnalyzeImage={handleAnalyzeSingleImageTitle}
           isAnalyzingTitles={isAnalyzingTitles}
+          authorListId={`${activeAuthorListId}-fullscreen`}
+          frequentAuthors={activeFrequentAuthors}
         />
       )}
 
