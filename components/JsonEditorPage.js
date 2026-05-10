@@ -41,6 +41,7 @@ import {
   runWithConcurrency,
   sortBoardsByEventStartYear,
   parseOptionalYear,
+  playAudio,
 } from "./utils"
 import { SortableImage } from "./SortableImage"
 
@@ -591,6 +592,9 @@ const JsonEditorPage = () => {
       console.error(err)
       alert(err.message || "Analyze failed")
     } finally {
+      playAudio(
+        "https://pub-41a63e44811f431085eefa140827e30b.r2.dev/chime03.wav",
+      )
       setIsAnalyzingTitles(false)
     }
   }

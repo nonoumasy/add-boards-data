@@ -379,3 +379,14 @@ export const parseOptionalYear = (value) => {
 
   return Number.isFinite(parsed) ? parsed : null
 }
+
+export const playAudio = (
+  audioFile = "https://pub-41a63e44811f431085eefa140827e30b.r2.dev/click05.wav",
+) => {
+  const audio = new Audio(audioFile)
+  audio.play().catch((err) => {
+    if (err.name !== "AbortError") {
+      console.warn("Audio playback failed:", err)
+    }
+  })
+}
