@@ -8,7 +8,7 @@ import {
   IoMdArrowRoundUp,
 } from "react-icons/io"
 import { MdAutoAwesome, MdOutlineDragIndicator } from "react-icons/md"
-import { getYoutubeEmbedUrl, ICON_SIZE } from "./utils"
+import { getYoutubeEmbedUrl, ICON_SIZE, playAudio } from "./utils"
 
 export const SortableImage = ({
   id,
@@ -67,6 +67,7 @@ export const SortableImage = ({
   }
 
   const handleCardClick = (e) => {
+    playAudio()
     const target = e.target instanceof Element ? e.target : null
 
     if (

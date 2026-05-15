@@ -1,4 +1,5 @@
 import { MdAutoAwesome, MdClose } from "react-icons/md"
+import { AiOutlineDelete } from "react-icons/ai"
 import {
   IoLogoGoogle,
   IoMdArrowRoundDown,
@@ -20,6 +21,7 @@ const FullscreenViewer = ({
   updateFullscreenImageAuthor,
   updateFullscreenImageTitle,
   onAnalyzeImage,
+  onDeleteImage,
   isAnalyzingTitles,
   authorListId,
   frequentAuthors = [],
@@ -56,6 +58,13 @@ const FullscreenViewer = ({
     if (!activeImage.image?.trim() || isAnalyzingTitles) return
 
     onAnalyzeImage?.(fullscreenViewer.boardId, fullscreenViewer.imageIndex)
+  }
+
+  const handleFullscreenDeleteImage = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    onDeleteImage?.(fullscreenViewer.boardId, fullscreenViewer.imageIndex)
   }
 
   const moveActiveImageToTop = (e) => {
@@ -253,6 +262,16 @@ const FullscreenViewer = ({
             style={{ cursor: "pointer" }}
           />
 
+          <AiOutlineDelete
+            className="icon-button"
+            size={ICON_SIZE}
+            onClick={handleFullscreenDeleteImage}
+            title="Delete Image"
+            style={{
+              cursor: "pointer",
+            }}
+          />
+
           <MdClose
             className="icon-button"
             size={ICON_SIZE}
@@ -364,6 +383,7 @@ const FullscreenViewer = ({
               </option>
             ))}
           </select>
+
           <input
             value={activeImage.image || ""}
             onChange={(e) => updateFullscreenImageUrl(e.target.value)}
@@ -374,6 +394,7 @@ const FullscreenViewer = ({
               background: "rgba(0,0,0,0.75)",
             }}
           />
+
           <input
             list={authorListId}
             value={activeImage.imageAuthor || ""}

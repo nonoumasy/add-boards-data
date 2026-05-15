@@ -1839,6 +1839,7 @@ const JsonEditorPage = () => {
           updateFullscreenImageAuthor={updateFullscreenImageAuthor}
           updateFullscreenImageTitle={updateFullscreenImageTitle}
           onAnalyzeImage={handleAnalyzeSingleImageTitle}
+          onDeleteImage={deleteImageAtIndex}
           isAnalyzingTitles={isAnalyzingTitles}
           authorListId={`${activeAuthorListId}-fullscreen`}
           frequentAuthors={activeFrequentAuthors}
