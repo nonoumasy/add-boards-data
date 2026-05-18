@@ -5,8 +5,7 @@ import {
   rectSortingStrategy,
   arrayMove,
 } from "@dnd-kit/sortable"
-import { MdClear, MdOutlineFolder, MdSaveAlt } from "react-icons/md"
-import { IoMdAdd } from "react-icons/io"
+import { MdOutlineFolder, MdSaveAlt } from "react-icons/md"
 import { AiOutlineDelete } from "react-icons/ai"
 import { FooterComp } from "@/components/FooterComp"
 import { GoImage } from "react-icons/go"
@@ -19,13 +18,11 @@ import {
   MENU_WIDTH,
   MENU_HEIGHT,
   MENU_EDGE_GAP,
-  defaultImage,
   STORAGE_KEY,
   FLOATING_MENU_POSITION_KEY,
   ANALYZE_CONCURRENCY,
   saveFileHandleToDb,
   getFileHandleFromDb,
-  deleteFileHandleFromDb,
   normalizeImageUrl,
   getDuplicateImageKeys,
   getDuplicateItemCount,
@@ -150,12 +147,13 @@ const JsonEditorPage = () => {
         .map(([value]) => value)
     : []
 
-  const previewImage =
-    openBoard?.images.find(
-      (img) => img.image?.trim() && !getYoutubeEmbedUrl(img.image),
-    )?.image || defaultImage
-
   const menuDisabled = !openBoard
+
+  const publishedBoardCount = data.filter(
+    (item) => item.publishOn !== false,
+  ).length
+
+  const draftBoardCount = data.filter((item) => item.publishOn === false).length
 
   const applyFloatingPositionToNode = (xPercent, yPercent) => {
     const node = menuRef.current
@@ -950,15 +948,6 @@ const JsonEditorPage = () => {
     }
   }
 
-  const forgetSavedFile = async () => {
-    try {
-      await deleteFileHandleFromDb()
-      setFileHandle(null)
-    } catch (err) {
-      console.error(err)
-    }
-  }
-
   const updateItem = (id, key, value) => {
     markDirty()
 
@@ -1638,15 +1627,6 @@ const JsonEditorPage = () => {
 
       if (isTypingTarget) return
 
-      if (
-        (e.key === "Delete" || e.key === "Backspace") &&
-        activeSelectedIndexes.length > 0
-      ) {
-        e.preventDefault()
-        handleBulkDelete()
-        return
-      }
-
       if (fullscreenViewer) {
         if (e.key === "ArrowLeft") {
           e.preventDefault()
@@ -1677,6 +1657,14 @@ const JsonEditorPage = () => {
           return
         }
       }
+
+      if (
+        (e.key === "Delete" || e.key === "Backspace") &&
+        activeSelectedIndexes.length > 0
+      ) {
+        e.preventDefault()
+        handleBulkDelete()
+      }
     }
 
     window.addEventListener("keydown", handleKeyDown)
@@ -1701,14 +1689,6 @@ const JsonEditorPage = () => {
           style={{ cursor: "pointer" }}
         />
 
-        <IoMdAdd
-          className="icon-button"
-          size={ICON_SIZE}
-          onClick={createItem}
-          title="Create Board"
-          style={{ cursor: "pointer" }}
-        />
-
         <MdSaveAlt
           className="icon-button"
           size={ICON_SIZE}
@@ -1716,20 +1696,52 @@ const JsonEditorPage = () => {
           title="Save Data"
           style={{ cursor: "pointer" }}
         />
-
-        <MdClear
-          className="icon-button"
-          size={ICON_SIZE}
-          onClick={forgetSavedFile}
-          title="Clear Board json"
-          style={{ cursor: "pointer" }}
-        />
       </div>
 
-      <div>
-        file: {fileName}
-        {fileHandle ? " | remembered" : ""}
-        {!supportsFsAccess ? " | browser does not support same-file save" : ""}
+      <div
+        className="flex-row"
+        style={{
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 10,
+        }}
+      >
+        <span>
+          file: {fileName}
+          {!supportsFsAccess
+            ? " | browser does not support same-file save"
+            : ""}
+        </span>
+
+        <span>|</span>
+
+        <span>{data.length} total</span>
+
+        <span
+          style={{
+            border: "1px solid",
+            borderRadius: 999,
+            padding: "2px 8px",
+            fontSize: 12,
+            fontWeight: "bold",
+            background: "rgba(0,128,0,0.12)",
+          }}
+        >
+          {publishedBoardCount} published
+        </span>
+
+        <span
+          style={{
+            border: "1px solid",
+            borderRadius: 999,
+            padding: "2px 8px",
+            fontSize: 12,
+            fontWeight: "bold",
+            background: "rgba(128,128,128,0.18)",
+          }}
+        >
+          {draftBoardCount} drafts
+        </span>
       </div>
 
       <div className="flex-column">
@@ -1898,6 +1910,7 @@ const BoardItem = ({
   )
 
   const authorListId = `image-author-options-${item.id}`
+  const isPublished = item.publishOn ?? true
 
   const moveImageToTop = (idx) => {
     if (idx <= 0) return
@@ -1974,9 +1987,11 @@ const BoardItem = ({
       ref={boardRef}
       className="flex-column"
       style={{
-        border: "1px solid",
+        border: isPublished ? "1px solid" : "1px dashed #999",
         borderRadius: 10,
         padding: 20,
+        background: isPublished ? "transparent" : "rgba(0,0,0,0.04)",
+        opacity: isPublished ? 1 : 0.75,
       }}
     >
       <div className="flex-between">
@@ -2000,6 +2015,21 @@ const BoardItem = ({
           >
             <span>
               {index + 1}. {item.title || "Untitled"} ({item.eventStartYear}) |
+            </span>
+
+            <span
+              style={{
+                border: "1px solid",
+                borderRadius: 999,
+                padding: "2px 8px",
+                fontSize: 12,
+                fontWeight: "bold",
+                background: isPublished
+                  ? "rgba(0,128,0,0.12)"
+                  : "rgba(128,128,128,0.18)",
+              }}
+            >
+              {isPublished ? "Published" : "Draft"}
             </span>
 
             <span className="flex-row" style={{ gap: 5 }}>
@@ -2028,6 +2058,7 @@ const BoardItem = ({
               </>
             )}
           </span>
+
           {duplicateCount > 0 && (
             <>
               <span>|</span>
@@ -2086,6 +2117,7 @@ const BoardItem = ({
               )
             }
           />
+
           <label
             className="flex-row"
             style={{
