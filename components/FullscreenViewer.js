@@ -367,8 +367,13 @@ const FullscreenViewer = ({
           <select
             value=""
             onChange={(e) => {
-              moveFullscreenImageToBoard(e.target.value)
-              e.target.value = ""
+              const targetBoardId = e.target.value
+
+              e.currentTarget.blur()
+
+              if (!targetBoardId) return
+
+              moveFullscreenImageToBoard(targetBoardId)
             }}
             style={{
               boxSizing: "border-box",
