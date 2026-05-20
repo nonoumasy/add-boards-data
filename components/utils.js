@@ -360,10 +360,20 @@ export const sortBoardsByEventStartYear = (boards) =>
       board,
       originalIndex,
       sortYear: getBoardSortYear(board.eventStartYear),
+      sortTitle: String(board.title || "").trim(),
     }))
     .sort((a, b) => {
       if (a.sortYear !== b.sortYear) {
         return a.sortYear - b.sortYear
+      }
+
+      const titleCompare = a.sortTitle.localeCompare(b.sortTitle, undefined, {
+        sensitivity: "base",
+        numeric: true,
+      })
+
+      if (titleCompare !== 0) {
+        return titleCompare
       }
 
       return a.originalIndex - b.originalIndex
